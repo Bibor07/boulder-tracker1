@@ -478,8 +478,8 @@ export default function TrainingPage() {
     <section className="card">
       <div className="page-header">
         <div>
-          <h2>Training</h2>
-          <p>Trainingspläne manuell sortieren und Übungen hinterlegen.</p>
+          <h2>Trainingspläne</h2>
+          <p>Trainingspläne erstellen und Übungen hinterlegen.</p>
         </div>
 
         <button className="primary-action-button" onClick={openNewPlanModal}>
