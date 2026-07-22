@@ -22,8 +22,8 @@ export default function App() {
         </div>
 
         <div>
-          <h1>Boulder Tracker</h1>
-          <p>Training, einzelne Boulder, Körperdaten und Statistik</p>
+          <h1>Vertical Progress</h1>
+          <p>Bouldern, Training, Körperdaten und Statistik.</p>
         </div>
       </header>
 
