@@ -175,7 +175,7 @@ function downloadCsv(filename: string, rows: Array<Array<unknown>>) {
 }
 
 export default function StatisticsPage() {
-  const [tab, setTab] = useState<StatisticsTab>("training");
+  const [tab, setTab] = useState<StatisticsTab>("bouldern");
 
   const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
   const [selectedYear, setSelectedYear] = useState(todayYear());
