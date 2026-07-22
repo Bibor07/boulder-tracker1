@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { db } from "../../db/db";
 import type {
   BodyMeasurement,
@@ -9,6 +9,7 @@ import type {
   DiaryExercise,
   Exercise,
 } from "../../db/types";
+import { exportBackupJson, importBackupJson } from "../../utils/backup";
 
 type PeriodMode = "all" | "year" | "month";
 type StatisticsTab = "training" | "bouldern" | "body";
@@ -16,6 +17,11 @@ type StatisticsTab = "training" | "bouldern" | "body";
 type ChartItem = {
   label: string;
   value: number;
+};
+
+type MultiLineChartPoint = {
+  label: string;
+  values: Record<string, number>;
 };
 
 type TrainingExerciseStat = {
@@ -169,13 +175,16 @@ function downloadCsv(filename: string, rows: Array<Array<unknown>>) {
 
   link.href = url;
   link.download = filename;
+  document.body.appendChild(link);
   link.click();
+  link.remove();
 
   window.URL.revokeObjectURL(url);
 }
 
 export default function StatisticsPage() {
   const [tab, setTab] = useState<StatisticsTab>("bouldern");
+  const [dataMenuOpen, setDataMenuOpen] = useState(false);
 
   const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
   const [selectedYear, setSelectedYear] = useState(todayYear());
@@ -211,12 +220,56 @@ export default function StatisticsPage() {
   }, []);
 
   const exerciseMap = useMemo(() => {
-    return new Map(exercises.map((exercise) => [exercise.id, exercise]));
+    return new Map(
+      exercises
+        .filter((exercise) => exercise.id !== undefined)
+        .map((exercise) => [exercise.id!, exercise])
+    );
   }, [exercises]);
 
   const entryMap = useMemo(() => {
-    return new Map(diaryEntries.map((entry) => [entry.id, entry]));
+    return new Map(
+      diaryEntries
+        .filter((entry) => entry.id !== undefined)
+        .map((entry) => [entry.id!, entry])
+    );
   }, [diaryEntries]);
+
+  async function handleBackupExport() {
+    try {
+      await exportBackupJson();
+      alert("Backup wurde erstellt.");
+    } catch (error) {
+      console.error(error);
+      alert("Backup konnte nicht erstellt werden.");
+    }
+  }
+
+  async function handleBackupImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    const confirmed = window.confirm(
+      "Beim Import werden alle aktuellen lokalen Daten überschrieben. Fortfahren?"
+    );
+
+    if (!confirmed) {
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      await importBackupJson(file);
+      alert("Backup wurde importiert. Die App wird jetzt neu geladen.");
+      window.location.reload();
+    } catch (error) {
+      console.error(error);
+      alert("Backup konnte nicht importiert werden.");
+    } finally {
+      event.target.value = "";
+    }
+  }
 
   function exportAllDataToCsv() {
     const rows: Array<Array<unknown>> = [
@@ -244,7 +297,7 @@ export default function StatisticsPage() {
     diaryExercises.forEach((item) => {
       const exercise = exerciseMap.get(item.exerciseId);
       const entry = entryMap.get(item.diaryEntryId);
-    
+
       if (!exercise) return;
 
       const date = entry?.date ?? item.createdAt.slice(0, 10);
@@ -273,7 +326,7 @@ export default function StatisticsPage() {
 
         return;
       }
-  
+
       if (item.setRows && item.setRows.length > 0) {
         item.setRows.forEach((setRow, index) => {
           rows.push([
@@ -349,7 +402,7 @@ export default function StatisticsPage() {
 
     const today = new Date().toISOString().slice(0, 10);
 
-    downloadCsv(`boulder-tracker-export-${today}.csv`, rows);
+    downloadCsv(`VerticalProgress_Export_${today}.csv`, rows);
   }
 
   const availableYears = useMemo(() => {
@@ -375,7 +428,11 @@ export default function StatisticsPage() {
   }, [diaryEntries, periodMode, selectedYear, selectedMonth]);
 
   const filteredEntryIds = useMemo(() => {
-    return new Set(filteredEntries.map((entry) => entry.id));
+    return new Set(
+      filteredEntries
+        .filter((entry) => entry.id !== undefined)
+        .map((entry) => entry.id!)
+    );
   }, [filteredEntries]);
 
   const filteredDiaryExercises = useMemo(() => {
@@ -687,7 +744,7 @@ export default function StatisticsPage() {
     return exercises
       .filter(
         (exercise) =>
-          exercise.id &&
+          exercise.id !== undefined &&
           exerciseIdsWithData.has(exercise.id) &&
           exercise.bodyPart === selectedTrainingBodyPart &&
           exercise.type !== "boulder"
@@ -697,6 +754,7 @@ export default function StatisticsPage() {
 
   const selectedTrainingExercise = useMemo(() => {
     if (!selectedTrainingExerciseId) return null;
+
     return exerciseMap.get(selectedTrainingExerciseId) ?? null;
   }, [selectedTrainingExerciseId, exerciseMap]);
 
@@ -828,15 +886,13 @@ export default function StatisticsPage() {
     }));
   }, [boulderGradesWithData, boulderItems]);
 
-  const boulderGradeTimelineData = useMemo(() => {
+  const boulderGradeTimelineData = useMemo<MultiLineChartPoint[]>(() => {
     const dates = Array.from(
       new Set(
-        boulderItems
-          .map((item) => {
-            const entry = entryMap.get(item.diaryEntryId);
-            return entry?.date ?? item.createdAt.slice(0, 10);
-          })
-          .filter(Boolean)
+        boulderItems.map((item) => {
+          const entry = entryMap.get(item.diaryEntryId);
+          return entry?.date ?? item.createdAt.slice(0, 10);
+        })
       )
     ).sort((a, b) => a.localeCompare(b));
 
@@ -875,6 +931,7 @@ export default function StatisticsPage() {
 
   const heaviestBoulderGrade = useMemo(() => {
     if (boulderGradesWithData.length === 0) return null;
+
     return Math.max(...boulderGradesWithData);
   }, [boulderGradesWithData]);
 
@@ -898,9 +955,51 @@ export default function StatisticsPage() {
           <p>Training, Bouldern und Körperdaten auswerten.</p>
         </div>
 
-        <button className="primary-action-button" onClick={exportAllDataToCsv}>
-          CSV Export
-        </button>
+        <div className="plan-menu-wrapper">
+          <button
+            className="primary-action-button"
+            onClick={() => setDataMenuOpen((current) => !current)}
+          >
+            Daten
+          </button>
+
+          {dataMenuOpen && (
+            <div className="plan-options-menu">
+              <button
+                className="menu-button"
+                onClick={() => {
+                  setDataMenuOpen(false);
+                  handleBackupExport();
+                }}
+              >
+                Backup exportieren
+              </button>
+
+              <label className="menu-button file-menu-button">
+                Backup importieren
+                <input
+                  type="file"
+                  accept="application/json"
+                  onChange={(event) => {
+                    setDataMenuOpen(false);
+                    handleBackupImport(event);
+                  }}
+                  hidden
+                />
+              </label>
+
+              <button
+                className="menu-button"
+                onClick={() => {
+                  setDataMenuOpen(false);
+                  exportAllDataToCsv();
+                }}
+              >
+                CSV exportieren
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="sub-card">
@@ -1096,15 +1195,14 @@ export default function StatisticsPage() {
                     <>
                       <StatBox
                         label="Zeit gesamt"
-                        value={formatSecondsToMinutes(
-                          selectedTrainingTotals.timeSeconds
-                        )}
+                        value={`${selectedTrainingTotals.timeSeconds} sek`}
                       />
 
                       <StatBox
                         label="Ø Zeit/Satz"
                         value={`${roundOne(
-                          selectedTrainingTotals.averageTimeSeconds)} sek`}
+                          selectedTrainingTotals.averageTimeSeconds
+                        )} sek`}
                       />
                     </>
                   )}
@@ -1678,10 +1776,7 @@ function MultiLineChart({
   yLabel,
   unit,
 }: {
-  data: Array<{
-    label: string;
-    values: Record<string, number>;
-  }>;
+  data: MultiLineChartPoint[];
   series: string[];
   colors: string[];
   xLabel: string;
@@ -1901,9 +1996,7 @@ function MultiLineChart({
         <span>
           Max: {roundOne(maxValue)} {unit}
         </span>
-        <span>
-          Linien: {validSeries.length}
-        </span>
+        <span>Linien: {validSeries.length}</span>
       </div>
     </div>
   );
