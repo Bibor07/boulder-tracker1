@@ -884,3 +884,33 @@ button:disabled {
   }
 }
 
+.data-menu-wrapper {
+  position: relative;
+}
+
+.data-options-menu {
+  right: 0;
+  left: auto;
+  min-width: 190px;
+  max-width: calc(100vw - 32px);
+}
+
+@media (max-width: 520px) {
+  .page-header .data-menu-wrapper {
+    width: 100%;
+  }
+
+  .page-header .data-menu-wrapper .primary-action-button {
+    max-width: none;
+    width: 100%;
+  }
+
+  .data-options-menu {
+    position: static;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin-top: 8px;
+  }
+}
+
