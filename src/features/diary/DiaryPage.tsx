@@ -10,6 +10,11 @@ import type {
   TrainingPlan,
   TrainingPlanExercise,
 } from "../../db/types";
+import {
+  exportBackupJson,
+  formatLastBackupDate,
+  shouldShowBackupReminder,
+} from "../../utils/backup";
 
 type TimerTarget = {
   exerciseIndex: number;
@@ -26,11 +31,9 @@ type DraftSessionExercise = {
   id?: number;
   exerciseId: number;
   setRows: DraftSetRow[];
-
   boulderStyle: BoulderStyle | "";
   boulderGrade: BoulderGrade | "";
   boulderAttempts: string;
-
   notes: string;
 };
 
@@ -65,7 +68,6 @@ export default function DiaryPage() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [diaryExercises, setDiaryExercises] = useState<DiaryExercise[]>([]);
-
   const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
   const [trainingPlanExercises, setTrainingPlanExercises] = useState<
     TrainingPlanExercise[]
@@ -85,13 +87,16 @@ export default function DiaryPage() {
 
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<number[]>([]);
   const [exerciseBodyPartFilter, setExerciseBodyPartFilter] = useState("Alle");
-
   const [draftExercises, setDraftExercises] = useState<DraftSessionExercise[]>(
     []
   );
 
   const [runningTimer, setRunningTimer] = useState<TimerTarget | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
+
+  const [backupReminderVisible, setBackupReminderVisible] = useState(
+    shouldShowBackupReminder(7)
+  );
 
   async function loadData() {
     const exerciseData = await db.exercises.toArray();
@@ -130,7 +135,11 @@ export default function DiaryPage() {
   }, [exercises]);
 
   const exerciseMap = useMemo(() => {
-    return new Map(exercises.map((exercise) => [exercise.id, exercise]));
+    return new Map(
+      exercises
+        .filter((exercise) => exercise.id !== undefined)
+        .map((exercise) => [exercise.id!, exercise])
+    );
   }, [exercises]);
 
   const bodyPartOptions = useMemo(() => {
@@ -153,6 +162,17 @@ export default function DiaryPage() {
   const sortedEntries = useMemo(() => {
     return [...diaryEntries].sort((a, b) => b.date.localeCompare(a.date));
   }, [diaryEntries]);
+
+  async function handleDiaryBackupExport() {
+    try {
+      await exportBackupJson();
+      setBackupReminderVisible(false);
+      alert("Backup wurde erstellt.");
+    } catch (error) {
+      console.error(error);
+      alert("Backup konnte nicht erstellt werden.");
+    }
+  }
 
   function resetAllModals() {
     setShowSessionModal(false);
@@ -194,6 +214,16 @@ export default function DiaryPage() {
     setShowSessionModal(false);
     setShowStatsModal(false);
     setShowExerciseModal(true);
+  }
+
+  function closeExerciseSelection() {
+    setShowExerciseModal(false);
+
+    if (draftExercises.length > 0) {
+      setShowStatsModal(true);
+    } else {
+      setShowSessionModal(true);
+    }
   }
 
   function toggleEntryMenu(entryId?: number) {
@@ -328,6 +358,7 @@ export default function DiaryPage() {
     const draftItems = planItems
       .map((item): DraftSessionExercise | null => {
         const exercise = exerciseMap.get(item.exerciseId);
+
         if (!exercise) return null;
 
         return {
@@ -381,6 +412,7 @@ export default function DiaryPage() {
     const newDraftItems = selectedExerciseIds
       .map((exerciseId) => {
         const exercise = exerciseMap.get(exerciseId);
+
         if (!exercise) return null;
 
         return createDraftFromExercise(exercise);
@@ -388,6 +420,7 @@ export default function DiaryPage() {
       .filter((item): item is DraftSessionExercise => Boolean(item));
 
     setDraftExercises((current) => [...current, ...newDraftItems]);
+    setSelectedExerciseIds([]);
     setShowExerciseModal(false);
     setShowStatsModal(true);
   }
@@ -409,7 +442,7 @@ export default function DiaryPage() {
 
             return {
               ...setRow,
-              [field]: value,
+              value,
             };
           }),
         };
@@ -520,7 +553,11 @@ export default function DiaryPage() {
     const candidates = diaryExercises
       .filter((item) => {
         if (item.exerciseId !== exerciseId) return false;
-        if (currentEntryId && item.diaryEntryId === currentEntryId) return false;
+
+        if (currentEntryId && item.diaryEntryId === currentEntryId) {
+          return false;
+        }
+
         return true;
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -578,9 +615,7 @@ export default function DiaryPage() {
 
         if (exercise.type === "time" && !setRow.timeSeconds.trim()) {
           alert(
-            `Bitte Zeit für "${exercise.name}", Satz ${
-              index + 1
-            } eintragen.`
+            `Bitte Zeit für "${exercise.name}", Satz ${index + 1} eintragen.`
           );
           return false;
         }
@@ -682,9 +717,7 @@ export default function DiaryPage() {
       });
 
       await db.diaryExercises.bulkAdd(
-        draftExercises.map((item) =>
-          buildDiaryExercisePayload(entryId, item, now)
-        )
+        draftExercises.map((item) => buildDiaryExercisePayload(entryId, item, now))
       );
     }
 
@@ -705,7 +738,7 @@ export default function DiaryPage() {
     setTitle(entry.title ?? "");
     setEntryNotes(entry.notes ?? "");
     setDraftExercises(items);
-    setSelectedExerciseIds(items.map((item) => item.exerciseId));
+    setSelectedExerciseIds([]);
     resetAllModals();
     setShowStatsModal(true);
   }
@@ -730,6 +763,7 @@ export default function DiaryPage() {
 
   function getExercisesForEntry(entryId?: number) {
     if (!entryId) return [];
+
     return diaryExercises.filter((item) => item.diaryEntryId === entryId);
   }
 
@@ -745,6 +779,27 @@ export default function DiaryPage() {
           Session hinzufügen
         </button>
       </div>
+
+      {backupReminderVisible && (
+        <div className="backup-banner">
+          <div>
+            <h3>Backup empfohlen</h3>
+            <p>Letztes Backup: {formatLastBackupDate()}</p>
+            <p>
+              Deine Daten liegen lokal auf diesem Gerät. Erstelle regelmäßig ein
+              Backup, damit beim Browserdaten-Löschen oder Gerätewechsel nichts
+              verloren geht.
+            </p>
+          </div>
+
+          <button
+            className="primary-action-button"
+            onClick={handleDiaryBackupExport}
+          >
+            Backup jetzt erstellen
+          </button>
+        </div>
+      )}
 
       {showSessionModal && (
         <div className="modal-overlay">
@@ -847,15 +902,7 @@ export default function DiaryPage() {
 
               <button
                 className="secondary-button small-button"
-                onClick={() => {
-                  setShowExerciseModal(false);
-
-                  if (draftExercises.length > 0) {
-                    setShowStatsModal(true);
-                  } else {
-                    setShowSessionModal(true);
-                  }
-                }}
+                onClick={closeExerciseSelection}
               >
                 Zurück
               </button>
@@ -896,7 +943,10 @@ export default function DiaryPage() {
 
                     <input
                       type="checkbox"
-                      checked={selectedExerciseIds.includes(exercise.id!)}
+                      checked={
+                        exercise.id !== undefined &&
+                        selectedExerciseIds.includes(exercise.id)
+                      }
                       onChange={() => toggleExerciseSelection(exercise.id)}
                       className="checkbox-input"
                     />
@@ -910,21 +960,9 @@ export default function DiaryPage() {
                 Weiter zu Sätzen
               </button>
 
-              <button
-                className="secondary-button"
-                onClick={() => {
-                  setShowExerciseModal(false);
-
-                  if (draftExercises.length > 0) {
-                    setShowStatsModal(true);
-                  } else {
-                    setShowSessionModal(true);
-                  }
-                }}
-              >
+              <button className="secondary-button" onClick={closeExerciseSelection}>
                 Zurück
               </button>
-
             </div>
           </div>
         </div>
@@ -1152,9 +1190,7 @@ export default function DiaryPage() {
 
                         {isTimeExercise && (
                           <div className="timer-box">
-                            <strong>
-                              Stoppuhr: {formatSeconds(timerSeconds)}
-                            </strong>
+                            <strong>Stoppuhr: {formatSeconds(timerSeconds)}</strong>
 
                             <div className="session-action-row">
                               {!isTimerRunning ? (
@@ -1178,7 +1214,6 @@ export default function DiaryPage() {
                               >
                                 Reset
                               </button>
-
                             </div>
                           </div>
                         )}
