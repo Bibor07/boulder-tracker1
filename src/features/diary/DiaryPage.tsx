@@ -442,7 +442,7 @@ export default function DiaryPage() {
 
             return {
               ...setRow,
-              value,
+              [field]: value,
             };
           }),
         };
