@@ -190,8 +190,9 @@ export default function DiaryPage() {
   }
 
   function openExerciseSelection() {
-    setSelectedExerciseIds(draftExercises.map((item) => item.exerciseId));
+    setSelectedExerciseIds([]);
     setShowSessionModal(false);
+    setShowStatsModal(false);
     setShowExerciseModal(true);
   }
 
@@ -377,15 +378,8 @@ export default function DiaryPage() {
       return;
     }
 
-    const existingByExerciseId = new Map(
-      draftExercises.map((item) => [item.exerciseId, item])
-    );
-
-    const draftItems = selectedExerciseIds
+    const newDraftItems = selectedExerciseIds
       .map((exerciseId) => {
-        const existing = existingByExerciseId.get(exerciseId);
-        if (existing) return existing;
-
         const exercise = exerciseMap.get(exerciseId);
         if (!exercise) return null;
 
@@ -393,7 +387,7 @@ export default function DiaryPage() {
       })
       .filter((item): item is DraftSessionExercise => Boolean(item));
 
-    setDraftExercises(draftItems);
+    setDraftExercises((current) => [...current, ...newDraftItems]);
     setShowExerciseModal(false);
     setShowStatsModal(true);
   }
@@ -855,7 +849,12 @@ export default function DiaryPage() {
                 className="secondary-button small-button"
                 onClick={() => {
                   setShowExerciseModal(false);
-                  setShowSessionModal(true);
+
+                  if (draftExercises.length > 0) {
+                    setShowStatsModal(true);
+                  } else {
+                    setShowSessionModal(true);
+                  }
                 }}
               >
                 Zurück
@@ -915,11 +914,17 @@ export default function DiaryPage() {
                 className="secondary-button"
                 onClick={() => {
                   setShowExerciseModal(false);
-                  setShowSessionModal(true);
+
+                  if (draftExercises.length > 0) {
+                    setShowStatsModal(true);
+                  } else {
+                    setShowSessionModal(true);
+                  }
                 }}
               >
                 Zurück
               </button>
+
             </div>
           </div>
         </div>
@@ -959,6 +964,12 @@ export default function DiaryPage() {
                 placeholder="Notiz zur Session optional"
                 rows={2}
               />
+            </div>
+
+            <div className="session-action-row">
+              <button className="secondary-button" onClick={openExerciseSelection}>
+                Weitere Übungen hinzufügen
+              </button>
             </div>
 
             <div className="list">
@@ -1274,7 +1285,6 @@ export default function DiaryPage() {
 
                   return (
                     <div key={item.id} className="entry-exercise">
-                      <strong>{exercise?.name ?? "Unbekannte Übung"}</strong>
                       {formatDiaryExercise(item, exercise)}
                       {item.notes && <p>Notiz: {item.notes}</p>}
                     </div>
@@ -1289,30 +1299,6 @@ export default function DiaryPage() {
   );
 }
 
-function getDisplayRows(item: DiaryExercise, exercise?: Exercise) {
-  if (!exercise) return [];
-
-  if (item.setRows && item.setRows.length > 0) {
-    return item.setRows.map((row, index) => ({
-      id: row.id || `${item.id}-${index}`,
-      label: `Satz ${index + 1}`,
-      weightKg: row.weightKg ?? 0,
-      reps: row.reps,
-      timeSeconds: row.timeSeconds,
-    }));
-  }
-
-  const setCount = Math.max(1, Number(item.sets || 1));
-
-  return Array.from({ length: setCount }).map((_, index) => ({
-    id: `${item.id}-fallback-${index}`,
-    label: `Satz ${index + 1}`,
-    weightKg: item.weightKg ?? 0,
-    reps: exercise.type === "reps" ? item.reps : undefined,
-    timeSeconds: exercise.type === "time" ? item.timeSeconds : undefined,
-  }));
-}
-
 function formatDiaryExercise(item: DiaryExercise, exercise?: Exercise) {
   if (!exercise) return <p>Keine Übungsdaten</p>;
 
@@ -1322,33 +1308,19 @@ function formatDiaryExercise(item: DiaryExercise, exercise?: Exercise) {
         <div className="last-set-row">
           <span>Boulder</span>
           <span>
-            {item.boulderStyle ?? "-"} · Grad {item.boulderGrade ?? "-"} ·{" "}
-            {item.boulderAttempts ?? "-"} Versuche
+            {item.boulderStyle ?? "-"} · Grad {item.boulderGrade ?? "-"}
           </span>
         </div>
       </div>
     );
   }
 
-  const rows = getDisplayRows(item, exercise);
-
   return (
     <div className="last-set-list">
-      {rows.map((row) => (
-        <div key={row.id} className="last-set-row">
-          <span>{row.label}</span>
-
-          {exercise.type === "reps" ? (
-            <span>
-              {row.weightKg} kg · {row.reps ?? "-"} Wdh.
-            </span>
-          ) : (
-            <span>
-              {row.weightKg} kg · {row.timeSeconds ?? "-"} sek
-            </span>
-          )}
-        </div>
-      ))}
+      <div className="last-set-row">
+        <span>Übung</span>
+        <span>{exercise.name}</span>
+      </div>
     </div>
   );
 }
