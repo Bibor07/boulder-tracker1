@@ -955,7 +955,7 @@ export default function StatisticsPage() {
           <p>Training, Bouldern und Körperdaten auswerten.</p>
         </div>
 
-        <div className="plan-menu-wrapper">
+        <div className="plan-menu-wrapper data-menu-wrapper">
           <button
             className="primary-action-button"
             onClick={() => setDataMenuOpen((current) => !current)}
@@ -964,7 +964,7 @@ export default function StatisticsPage() {
           </button>
 
           {dataMenuOpen && (
-            <div className="plan-options-menu">
+            <div className="plan-options-menu data-options-menu">
               <button
                 className="menu-button"
                 onClick={() => {
