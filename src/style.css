@@ -81,7 +81,7 @@ body {
   bottom: 0;
 
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 
   padding: 8px 0;
   margin: 0;
@@ -918,3 +918,43 @@ button:disabled {
   }
 }
 
+.inline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  color: #a1a1aa;
+  font-size: 14px;
+}
+
+.inline-toggle input {
+  width: 20px;
+  height: 20px;
+}
+
+.session-overview-card {
+  cursor: pointer;
+}
+
+.session-overview-card:hover {
+  border-color: #27272a;
+}
+
+.session-exercise-summary {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #27272a;
+  border-radius: 14px;
+  background: #18181b;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-exercise-line {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #09090b;
+  color: #f4f4f5;
+  font-size: 14px;
+}

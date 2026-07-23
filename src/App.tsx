@@ -1,14 +1,7 @@
 import { NavLink, Route, Routes } from "react-router-dom";
-import BodyPage from "./features/body/BodyPage";
-import {
-  BookOpen,
-  BarChart3,
-  Dumbbell,
-  ListChecks,
-  UserRound,
-} from "lucide-react";
+import { BookOpen, BarChart3, Dumbbell, UserRound } from "lucide-react";
 
-import ExercisesPage from "./features/exercises/ExercisesPage";
+import BodyPage from "./features/body/BodyPage";
 import DiaryPage from "./features/diary/DiaryPage";
 import TrainingPage from "./features/training/TrainingPage";
 import StatisticsPage from "./features/statistics/StatisticsPage";
@@ -17,10 +10,6 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="logo">
-          <Dumbbell size={22} />
-        </div>
-
         <div>
           <h1>Vertical Progress</h1>
           <p>Bouldern, Training, Körperdaten und Statistik.</p>
@@ -31,28 +20,19 @@ export default function App() {
         <Routes>
           <Route path="/" element={<DiaryPage />} />
           <Route path="/training" element={<TrainingPage />} />
-          <Route path="/exercises" element={<ExercisesPage />} />
           <Route path="/body" element={<BodyPage />} />
           <Route path="/statistics" element={<StatisticsPage />} />
+          <Route path="*" element={<DiaryPage />} />
         </Routes>
       </main>
 
       <nav className="bottom-nav">
-        <NavItem to="/" icon={<BookOpen size={18} />} label="Tagebuch" />
-        <NavItem
-          to="/training"
-          icon={<ListChecks size={18} />}
-          label="Training"
-        />
-        <NavItem
-          to="/exercises"
-          icon={<Dumbbell size={18} />}
-          label="Übungen"
-        />
-        <NavItem to="/body" icon={<UserRound size={18} />} label="Körper" />
+        <NavItem to="/" icon={<BookOpen size={20} />} label="Tagebuch" />
+        <NavItem to="/training" icon={<Dumbbell size={20} />} label="Training" />
+        <NavItem to="/body" icon={<UserRound size={20} />} label="Körper" />
         <NavItem
           to="/statistics"
-          icon={<BarChart3 size={18} />}
+          icon={<BarChart3 size={20} />}
           label="Statistik"
         />
       </nav>
