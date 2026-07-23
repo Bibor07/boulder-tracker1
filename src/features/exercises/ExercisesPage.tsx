@@ -301,7 +301,7 @@ export default function ExercisesPage({
   }
 
   return (
-    <section className={embedded ? "sub-card" : "card"}>
+    <section className={embedded ? "embedded-exercises" : "card"}>
       {!embedded && (
         <div className="page-header">
           <div>
