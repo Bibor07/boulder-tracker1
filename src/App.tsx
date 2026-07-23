@@ -1,5 +1,11 @@
 import { NavLink, Route, Routes } from "react-router-dom";
-import { BookOpen, BarChart3, Dumbbell, UserRound } from "lucide-react";
+import {
+  BookOpen,
+  BarChart3,
+  Dumbbell,
+  ListChecks,
+  UserRound,
+} from "lucide-react";
 
 import BodyPage from "./features/body/BodyPage";
 import DiaryPage from "./features/diary/DiaryPage";
