@@ -3,7 +3,6 @@ import {
   BookOpen,
   BarChart3,
   Dumbbell,
-  ListChecks,
   UserRound,
 } from "lucide-react";
 
