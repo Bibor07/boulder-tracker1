@@ -79,7 +79,7 @@ export default function DiaryPage() {
   const [showStatsModal, setShowStatsModal] = useState(false);
 
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
-  const [openEntryMenuId, setOpenEntryMenuId] = useState<number | null>(null);
+  const [showEntryActionMenu, setShowEntryActionMenu] = useState(false);
 
   const [date, setDate] = useState(todayIsoDate());
   const [title, setTitle] = useState("");
@@ -183,6 +183,7 @@ export default function DiaryPage() {
 
   function resetSession() {
     setEditingEntryId(null);
+    setShowEntryActionMenu(false);
     setDate(todayIsoDate());
     setTitle("");
     setEntryNotes("");
@@ -224,16 +225,6 @@ export default function DiaryPage() {
     } else {
       setShowSessionModal(true);
     }
-  }
-
-  function toggleEntryMenu(entryId?: number) {
-    if (!entryId) return;
-
-    setOpenEntryMenuId((current) => (current === entryId ? null : entryId));
-  }
-
-  function closeEntryMenu() {
-    setOpenEntryMenuId(null);
   }
 
   function getPlanExerciseNames(planId?: number) {
@@ -734,6 +725,7 @@ export default function DiaryPage() {
       .map((item) => convertDiaryExerciseToDraft(item));
 
     setEditingEntryId(entry.id);
+    setShowEntryActionMenu(false);
     setDate(entry.date);
     setTitle(entry.title ?? "");
     setEntryNotes(entry.notes ?? "");
@@ -743,21 +735,21 @@ export default function DiaryPage() {
     setShowStatsModal(true);
   }
 
-  async function deleteSession(entry: DiaryEntry) {
-    if (!entry.id) return;
+  async function deleteCurrentEditingSession() {
+    if (!editingEntryId) return;
 
-    const confirmed = window.confirm(
-      `Session vom ${entry.date} wirklich löschen?`
-    );
+    const confirmed = window.confirm("Diese Session wirklich löschen?");
 
     if (!confirmed) return;
 
     await db.transaction("rw", db.diaryEntries, db.diaryExercises, async () => {
-      await db.diaryExercises.where("diaryEntryId").equals(entry.id!).delete();
-      await db.diaryEntries.delete(entry.id!);
+      await db.diaryExercises.where("diaryEntryId").equals(editingEntryId).delete();
+      await db.diaryEntries.delete(editingEntryId);
     });
 
-    closeEntryMenu();
+    setShowEntryActionMenu(false);
+    resetSession();
+    resetAllModals();
     await loadData();
   }
 
@@ -973,13 +965,45 @@ export default function DiaryPage() {
           <div className="modal-card">
             <div className="modal-header">
               <div>
-                <h3>Sätze eintragen</h3>
+                <h3>{editingEntryId ? "Session bearbeiten" : "Sätze eintragen"}</h3>
                 <p>Jeder Satz ist eine eigene Zeile mit Gewicht und Wert.</p>
               </div>
 
-              <button className="secondary-button small-button" onClick={closeAll}>
-                Schließen
-              </button>
+              <div className="plan-menu-wrapper">
+                {editingEntryId && (
+                  <>
+                    <button
+                      className="icon-button"
+                      onClick={() =>
+                        setShowEntryActionMenu((current) => !current)
+                      }
+                      aria-label="Session Optionen öffnen"
+                    >
+                      ⋮
+                    </button>
+
+                    {showEntryActionMenu && (
+                      <div className="plan-options-menu">
+                        <button
+                          className="menu-button danger-menu-button"
+                          onClick={deleteCurrentEditingSession}
+                        >
+                          Löschen
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {!editingEntryId && (
+                  <button
+                    className="secondary-button small-button"
+                    onClick={closeAll}
+                  >
+                    Schließen
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="form-block">
@@ -1270,58 +1294,29 @@ export default function DiaryPage() {
           const items = getExercisesForEntry(entry.id);
 
           return (
-            <article key={entry.id} className="list-item plan-card">
+            <article
+              key={entry.id}
+              className="list-item session-overview-card"
+              onClick={() => editSession(entry)}
+            >
               <div className="list-item-header">
                 <div>
                   <h3>{entry.title || "Session"}</h3>
                   <p>{entry.date}</p>
                 </div>
-
-                <div className="plan-menu-wrapper">
-                  <button
-                    className="icon-button"
-                    onClick={() => toggleEntryMenu(entry.id)}
-                    aria-label="Session Optionen öffnen"
-                  >
-                    ⋮
-                  </button>
-
-                  {openEntryMenuId === entry.id && (
-                    <div className="plan-options-menu">
-                      <button
-                        className="menu-button"
-                        onClick={() => {
-                          closeEntryMenu();
-                          editSession(entry);
-                        }}
-                      >
-                        Bearbeiten
-                      </button>
-
-                      <button
-                        className="menu-button danger-menu-button"
-                        onClick={() => {
-                          closeEntryMenu();
-                          deleteSession(entry);
-                        }}
-                      >
-                        Löschen
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {entry.notes && <p>Notiz: {entry.notes}</p>}
 
-              <div className="entry-exercises">
+              <div className="session-exercise-summary">
+                {items.length === 0 && <p>Keine Übungen in dieser Session.</p>}
+
                 {items.map((item) => {
                   const exercise = exerciseMap.get(item.exerciseId);
 
                   return (
-                    <div key={item.id} className="entry-exercise">
-                      {formatDiaryExercise(item, exercise)}
-                      {item.notes && <p>Notiz: {item.notes}</p>}
+                    <div key={item.id} className="session-exercise-line">
+                      {formatDiaryExerciseLine(item, exercise)}
                     </div>
                   );
                 })}
@@ -1334,32 +1329,25 @@ export default function DiaryPage() {
   );
 }
 
-function formatDiaryExercise(item: DiaryExercise, exercise?: Exercise) {
-  if (!exercise) return <p>Keine Übungsdaten</p>;
+function formatDiaryExerciseLine(item: DiaryExercise, exercise?: Exercise) {
+  if (!exercise) return "Unbekannte Übung";
 
   if (exercise.type === "boulder") {
-    return (
-      <div className="last-set-list">
-        <div className="last-set-row">
-          <span>Boulder</span>
-          <span>
-            {item.boulderStyle ?? "-"} · Grad {item.boulderGrade ?? "-"}
-          </span>
-        </div>
-      </div>
-    );
+    return `Boulder · ${item.boulderStyle ?? "-"} · Grad ${
+      item.boulderGrade ?? "-"
+    }`;
   }
 
-  return (
-    <div className="last-set-list">
-      <div className="last-set-row">
-        <span>Übung</span>
-        <span>{exercise.name}</span>
-      </div>
-    </div>
-  );
+  return exercise.name;
 }
 
 function formatLastStats(item: DiaryExercise, exercise?: Exercise) {
-  return formatDiaryExercise(item, exercise);
+  return (
+    <div className="last-set-list">
+      <div className="last-set-row">
+        <span>Letzte Session</span>
+        <span>{formatDiaryExerciseLine(item, exercise)}</span>
+      </div>
+    </div>
+  );
 }
