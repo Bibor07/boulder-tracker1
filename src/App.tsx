@@ -10,8 +10,8 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="logo">3    
-          <Mountain />
+        <div className="logo">
+          <Dumbbell size={22} />
         </div>
 
         <div>
