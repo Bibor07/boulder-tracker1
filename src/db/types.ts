@@ -32,6 +32,9 @@ export interface Exercise {
   targetReps?: number;
   targetTimeSeconds?: number;
 
+  targetBoulderStyle?: BoulderStyle;
+  targetBoulderGrade?: BoulderGrade;
+
   notes?: string;
   isActive: boolean;
 
