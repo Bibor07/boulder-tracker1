@@ -1277,11 +1277,18 @@ export default function DiaryPage() {
                 className="secondary-button"
                 onClick={() => {
                   setShowStatsModal(false);
-                  setShowSessionModal(true);
+
+                  if (editingEntryId) {
+                    resetSession();
+                    resetAllModals();
+                  } else {
+                    setShowSessionModal(true);
+                  }
                 }}
               >
                 Zurück
               </button>
+
             </div>
           </div>
         </div>
