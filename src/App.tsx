@@ -10,6 +10,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
+        <div className="logo">3    
+          <Mountain />
+        </div>
+
         <div>
           <h1>Vertical Progress</h1>
           <p>Bouldern, Training, Körperdaten und Statistik.</p>

@@ -958,3 +958,10 @@ button:disabled {
   color: #f4f4f5;
   font-size: 14px;
 }
+
+.embedded-exercises {
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
