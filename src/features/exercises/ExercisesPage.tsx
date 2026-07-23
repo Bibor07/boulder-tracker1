@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "../../db/db";
 import type {
   BodyPart,
+  BoulderGrade,
+  BoulderStyle,
   DiaryEntry,
   DiaryExercise,
   Exercise,
@@ -20,13 +22,28 @@ const bodyParts: Array<BodyPart | "Alle"> = [
   "Bouldern",
 ];
 
+const boulderStyles: BoulderStyle[] = [
+  "Slab",
+  "Dyno",
+  "Platte",
+  "Dynamisch",
+  "Leiste",
+  "Parkur Style",
+];
+
+const boulderGrades: BoulderGrade[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
 function formatExerciseType(type: ExerciseType) {
   if (type === "reps") return "Wiederholungen";
   if (type === "time") return "Zeit";
   return "Bouldern";
 }
 
-export default function ExercisesPage() {
+export default function ExercisesPage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [diaryExercises, setDiaryExercises] = useState<DiaryExercise[]>([]);
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
@@ -40,9 +57,9 @@ export default function ExercisesPage() {
   const [bodyPartFilter, setBodyPartFilter] = useState<BodyPart | "Alle">(
     "Alle"
   );
+  const [showInactive, setShowInactive] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
-
   const [name, setName] = useState("");
   const [bodyPart, setBodyPart] = useState<BodyPart>("Rücken");
   const [type, setType] = useState<ExerciseType>("reps");
@@ -50,6 +67,14 @@ export default function ExercisesPage() {
   const [targetSets, setTargetSets] = useState("");
   const [targetReps, setTargetReps] = useState("");
   const [targetTimeSeconds, setTargetTimeSeconds] = useState("");
+
+  const [targetBoulderStyle, setTargetBoulderStyle] = useState<
+    BoulderStyle | ""
+  >("");
+  const [targetBoulderGrade, setTargetBoulderGrade] = useState<
+    BoulderGrade | ""
+  >("");
+
   const [notes, setNotes] = useState("");
 
   async function loadData() {
@@ -66,6 +91,18 @@ export default function ExercisesPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    function handleOpenExerciseModal() {
+      openNewExerciseModal();
+    }
+
+    window.addEventListener("openExerciseModal", handleOpenExerciseModal);
+
+    return () => {
+      window.removeEventListener("openExerciseModal", handleOpenExerciseModal);
+    };
+  }, []);
+
   const filteredExercises = useMemo(() => {
     return exercises.filter((exercise) => {
       const matchesSearch = exercise.name
@@ -75,18 +112,25 @@ export default function ExercisesPage() {
       const matchesBodyPart =
         bodyPartFilter === "Alle" || exercise.bodyPart === bodyPartFilter;
 
-      return matchesSearch && matchesBodyPart;
+      const matchesActiveState = showInactive || exercise.isActive;
+
+      return matchesSearch && matchesBodyPart && matchesActiveState;
     });
-  }, [exercises, search, bodyPartFilter]);
+  }, [exercises, search, bodyPartFilter, showInactive]);
 
   function resetForm() {
     setEditingId(null);
     setName("");
     setBodyPart("Rücken");
     setType("reps");
+
     setTargetSets("");
     setTargetReps("");
     setTargetTimeSeconds("");
+
+    setTargetBoulderStyle("");
+    setTargetBoulderGrade("");
+
     setNotes("");
   }
 
@@ -119,21 +163,39 @@ export default function ExercisesPage() {
     }
 
     const now = new Date().toISOString();
+    const existingExercise =
+      editingId !== null
+        ? exercises.find((exercise) => exercise.id === editingId)
+        : null;
 
     const exerciseData = {
       name: name.trim(),
       bodyPart,
       type,
+
       targetSets:
         type !== "boulder" && targetSets ? Number(targetSets) : undefined,
+
       targetReps:
         type === "reps" && targetReps ? Number(targetReps) : undefined,
+
       targetTimeSeconds:
         type === "time" && targetTimeSeconds
           ? Number(targetTimeSeconds)
           : undefined,
+
+      targetBoulderStyle:
+        type === "boulder" && targetBoulderStyle
+          ? targetBoulderStyle
+          : undefined,
+
+      targetBoulderGrade:
+        type === "boulder" && targetBoulderGrade
+          ? targetBoulderGrade
+          : undefined,
+
       notes: notes.trim() || undefined,
-      isActive: true,
+      isActive: existingExercise?.isActive ?? true,
       updatedAt: now,
     };
 
@@ -158,9 +220,14 @@ export default function ExercisesPage() {
     setName(exercise.name);
     setBodyPart(exercise.bodyPart);
     setType(exercise.type);
+
     setTargetSets(exercise.targetSets?.toString() ?? "");
     setTargetReps(exercise.targetReps?.toString() ?? "");
     setTargetTimeSeconds(exercise.targetTimeSeconds?.toString() ?? "");
+
+    setTargetBoulderStyle(exercise.targetBoulderStyle ?? "");
+    setTargetBoulderGrade(exercise.targetBoulderGrade ?? "");
+
     setNotes(exercise.notes ?? "");
 
     closeExerciseMenu();
@@ -211,7 +278,7 @@ export default function ExercisesPage() {
     const entryById = new Map(
       diaryEntries
         .filter((entry) => entry.id !== undefined)
-        .map((entry) => [entry.id, entry])
+        .map((entry) => [entry.id!, entry])
     );
 
     const sorted = [...matchingItems].sort((a, b) => {
@@ -234,17 +301,22 @@ export default function ExercisesPage() {
   }
 
   return (
-    <section className="card">
-      <div className="page-header">
-        <div>
-          <h2>Übungen</h2>
-          <p>Übungen anlegen, filtern und verwalten.</p>
-        </div>
+    <section className={embedded ? "sub-card" : "card"}>
+      {!embedded && (
+        <div className="page-header">
+          <div>
+            <h2>Übungen</h2>
+            <p>Übungen anlegen, filtern und verwalten.</p>
+          </div>
 
-        <button className="primary-action-button" onClick={openNewExerciseModal}>
-          Übung hinzufügen
-        </button>
-      </div>
+          <button
+            className="primary-action-button"
+            onClick={openNewExerciseModal}
+          >
+            Übung hinzufügen
+          </button>
+        </div>
+      )}
 
       {showExerciseModal && (
         <div className="modal-overlay">
@@ -274,6 +346,7 @@ export default function ExercisesPage() {
                 value={type}
                 onChange={(event) => {
                   const newType = event.target.value as ExerciseType;
+
                   setType(newType);
 
                   if (newType === "boulder") {
@@ -281,6 +354,13 @@ export default function ExercisesPage() {
                     setTargetSets("");
                     setTargetReps("");
                     setTargetTimeSeconds("");
+                  } else {
+                    if (bodyPart === "Bouldern") {
+                      setBodyPart("Rücken");
+                    }
+
+                    setTargetBoulderStyle("");
+                    setTargetBoulderGrade("");
                   }
                 }}
               >
@@ -292,9 +372,7 @@ export default function ExercisesPage() {
               <select
                 value={bodyPart}
                 disabled={type === "boulder"}
-                onChange={(event) =>
-                  setBodyPart(event.target.value as BodyPart)
-                }
+                onChange={(event) => setBodyPart(event.target.value as BodyPart)}
               >
                 {bodyParts
                   .filter((bp) => bp !== "Alle")
@@ -340,10 +418,43 @@ export default function ExercisesPage() {
               )}
 
               {type === "boulder" && (
-                <p className="hint">
-                  Style, Schwierigkeit und Versuche werden später in der Session
-                  erfasst.
-                </p>
+                <>
+                  <select
+                    value={targetBoulderStyle}
+                    onChange={(event) =>
+                      setTargetBoulderStyle(event.target.value as BoulderStyle)
+                    }
+                  >
+                    <option value="">Ziel-Style auswählen</option>
+                    {boulderStyles.map((style) => (
+                      <option key={style} value={style}>
+                        {style}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={targetBoulderGrade}
+                    onChange={(event) =>
+                      setTargetBoulderGrade(
+                        event.target.value
+                          ? (Number(event.target.value) as BoulderGrade)
+                          : ""
+                      )
+                    }
+                  >
+                    <option value="">Ziel-Grad auswählen</option>
+                    {boulderGrades.map((grade) => (
+                      <option key={grade} value={grade}>
+                        Grad {grade}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p className="hint">
+                    Versuche werden später in der Session erfasst.
+                  </p>
+                </>
               )}
 
               <textarea
@@ -386,6 +497,15 @@ export default function ExercisesPage() {
         </select>
       </div>
 
+      <label className="inline-toggle">
+        <input
+          type="checkbox"
+          checked={showInactive}
+          onChange={(event) => setShowInactive(event.target.checked)}
+        />
+        Passive Übungen anzeigen
+      </label>
+
       <div className="list">
         {filteredExercises.length === 0 && (
           <p>Noch keine passenden Übungen vorhanden.</p>
@@ -399,6 +519,7 @@ export default function ExercisesPage() {
               <div className="list-item-header">
                 <div>
                   <h3>{exercise.name}</h3>
+
                   <p>
                     {exercise.bodyPart} · {formatExerciseType(exercise.type)}
                   </p>
@@ -453,13 +574,16 @@ export default function ExercisesPage() {
                 </p>
 
                 {exercise.type === "boulder" ? (
-                  <p>Boulder-Daten werden in der Session erfasst.</p>
+                  <p>
+                    Ziel: {exercise.targetBoulderStyle ?? "-"} · Grad{" "}
+                    {exercise.targetBoulderGrade ?? "-"}
+                  </p>
                 ) : (
                   <p>
                     Ziel: {exercise.targetSets ?? "-"} Sätze ·{" "}
                     {exercise.type === "reps"
                       ? `${exercise.targetReps ?? "-"} Wdh.`
-                      : `${exercise.targetTimeSeconds ?? "-"} sec`}
+                      : `${exercise.targetTimeSeconds ?? "-"} sek`}
                   </p>
                 )}
 
@@ -508,7 +632,7 @@ function formatLastExecution(
 
         return `Satz ${index + 1}: ${row.weightKg ?? 0} kg · ${
           row.timeSeconds ?? "-"
-        } sec`;
+        } sek`;
       })
       .join(" | ");
 
@@ -523,5 +647,5 @@ function formatLastExecution(
 
   return `${dateText}${diaryExercise.sets ?? "-"} Sätze × ${
     diaryExercise.timeSeconds ?? "-"
-  } sec · ${diaryExercise.weightKg ?? 0} kg`;
+  } sek · ${diaryExercise.weightKg ?? 0} kg`;
 }
