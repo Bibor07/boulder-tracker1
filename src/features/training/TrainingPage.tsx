@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import { db } from "../../db/db";
 import type {
@@ -6,6 +7,9 @@ import type {
   TrainingPlan,
   TrainingPlanExercise,
 } from "../../db/types";
+import ExercisesPage from "../exercises/ExercisesPage";
+
+type TrainingTab = "plans" | "exercises";
 
 const bodyParts: BodyPart[] = [
   "Finger",
@@ -25,6 +29,8 @@ function formatExerciseType(type: Exercise["type"]) {
 }
 
 export default function TrainingPage() {
+  const [trainingTab, setTrainingTab] = useState<TrainingTab>("plans");
+
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [planExercises, setPlanExercises] = useState<TrainingPlanExercise[]>(
@@ -43,8 +49,8 @@ export default function TrainingPage() {
 
   const [exerciseBodyPartFilter, setExerciseBodyPartFilter] =
     useState<BodyPart | "">("");
-
   const [selectedExerciseId, setSelectedExerciseId] = useState<number | "">("");
+
   const [defaultSets, setDefaultSets] = useState("");
   const [defaultReps, setDefaultReps] = useState("");
   const [defaultTimeSeconds, setDefaultTimeSeconds] = useState("");
@@ -80,16 +86,22 @@ export default function TrainingPage() {
   }, [activeExercises, exerciseBodyPartFilter]);
 
   const exerciseMap = useMemo(() => {
-    return new Map(exercises.map((exercise) => [exercise.id, exercise]));
+    return new Map(
+      exercises
+        .filter((exercise) => exercise.id !== undefined)
+        .map((exercise) => [exercise.id!, exercise])
+    );
   }, [exercises]);
 
   const selectedExercise = useMemo(() => {
     if (!selectedExerciseId) return null;
+
     return exerciseMap.get(selectedExerciseId) ?? null;
   }, [selectedExerciseId, exerciseMap]);
 
   const selectedPlan = useMemo(() => {
     if (!selectedPlanId) return null;
+
     return plans.find((plan) => plan.id === selectedPlanId) ?? null;
   }, [plans, selectedPlanId]);
 
@@ -205,6 +217,7 @@ export default function TrainingPage() {
     }
 
     const exercise = exerciseMap.get(exerciseIdValue);
+
     if (!exercise) return;
 
     if (exercise.type === "boulder") {
@@ -299,9 +312,11 @@ export default function TrainingPage() {
     if (!plan.id) return;
 
     const currentIndex = sortedPlans.findIndex((item) => item.id === plan.id);
+
     if (currentIndex <= 0) return;
 
     const previousPlan = sortedPlans[currentIndex - 1];
+
     if (!previousPlan.id) return;
 
     const currentPosition = plan.position ?? currentIndex + 1;
@@ -324,9 +339,11 @@ export default function TrainingPage() {
     if (!plan.id) return;
 
     const currentIndex = sortedPlans.findIndex((item) => item.id === plan.id);
+
     if (currentIndex === -1 || currentIndex >= sortedPlans.length - 1) return;
 
     const nextPlan = sortedPlans[currentIndex + 1];
+
     if (!nextPlan.id) return;
 
     const currentPosition = plan.position ?? currentIndex + 1;
@@ -478,334 +495,380 @@ export default function TrainingPage() {
     <section className="card">
       <div className="page-header">
         <div>
-          <h2>Trainingspläne</h2>
-          <p>Trainingspläne erstellen und Übungen hinterlegen.</p>
+          <h2>
+            {trainingTab === "plans" ? "Trainingspläne" : "Übungen"}
+          </h2>
+
+          <p>
+            {trainingTab === "plans"
+              ? "Trainingspläne erstellen."
+              : "Übungen verwalten."}
+          </p>
         </div>
 
-        <button className="primary-action-button" onClick={openNewPlanModal}>
-          Plan hinzufügen
+        {trainingTab === "plans" && (
+          <button
+            className="primary-action-button"
+            onClick={openNewPlanModal}
+          >
+            Plan hinzufügen
+          </button>
+        )}
+
+        {trainingTab === "exercises" && (
+          <button
+            className="primary-action-button"
+            onClick={() =>
+              window.dispatchEvent(new Event("openExerciseModal"))
+            }
+          >
+            Übung hinzufügen
+          </button>
+        )}
+      </div>
+
+      <div className="stats-tab-bar">
+        <button
+          className={trainingTab === "plans" ? "active-tab" : ""}
+          onClick={() => setTrainingTab("plans")}
+        >
+          Trainingspläne
+        </button>
+
+        <button
+          className={trainingTab === "exercises" ? "active-tab" : ""}
+          onClick={() => setTrainingTab("exercises")}
+        >
+          Übungen
         </button>
       </div>
 
-      <div className="list">
-        {sortedPlans.length === 0 && (
-          <p>Noch keine Trainingspläne vorhanden.</p>
-        )}
+      {trainingTab === "plans" && (
+        <>
+          <div className="list">
+            {sortedPlans.length === 0 && (
+              <p>Noch keine Trainingspläne vorhanden.</p>
+            )}
 
-        {sortedPlans.map((plan, index) => (
-          <div key={plan.id} className="list-item plan-card">
-            <div className="list-item-header">
-              <div>
-                <h3>
-                  {index + 1}. {plan.name}
-                </h3>
+            {sortedPlans.map((plan, index) => (
+              <div key={plan.id} className="list-item plan-card">
+                <div className="list-item-header">
+                  <div>
+                    <h3>
+                      {index + 1}. {plan.name}
+                    </h3>
 
-                {plan.description && <p>{plan.description}</p>}
+                    {plan.description && <p>{plan.description}</p>}
 
-                <p>
-                  Übungen: <strong>{getPlanExerciseNames(plan.id)}</strong>
-                </p>
-              </div>
-
-              <div className="plan-menu-wrapper">
-                <button
-                  className="icon-button"
-                  onClick={() => togglePlanMenu(plan.id)}
-                  aria-label="Plan Optionen öffnen"
-                >
-                  ⋮
-                </button>
-
-                {openMenuPlanId === plan.id && (
-                  <div className="plan-options-menu">
-                    <button
-                      className="menu-button"
-                      onClick={() => {
-                        movePlanUp(plan);
-                        closePlanMenu();
-                      }}
-                      disabled={index === 0}
-                    >
-                      ↑ Hoch
-                    </button>
-
-                    <button
-                      className="menu-button"
-                      onClick={() => {
-                        movePlanDown(plan);
-                        closePlanMenu();
-                      }}
-                      disabled={index === sortedPlans.length - 1}
-                    >
-                      ↓ Runter
-                    </button>
-
-                    <button
-                      className="menu-button"
-                      onClick={() => {
-                        openPlanDetailModal(plan.id!);
-                        closePlanMenu();
-                      }}
-                    >
-                      Übungen
-                    </button>
-
-                    <button
-                      className="menu-button"
-                      onClick={() => startEditPlan(plan)}
-                    >
-                      Bearbeiten
-                    </button>
-
-                    <button
-                      className="menu-button danger-menu-button"
-                      onClick={() => deletePlan(plan)}
-                    >
-                      Löschen
-                    </button>
+                    <p>
+                      Übungen: <strong>{getPlanExerciseNames(plan.id)}</strong>
+                    </p>
                   </div>
-                )}
+
+                  <div className="plan-menu-wrapper">
+                    <button
+                      className="icon-button"
+                      onClick={() => togglePlanMenu(plan.id)}
+                      aria-label="Plan Optionen öffnen"
+                    >
+                      ⋮
+                    </button>
+
+                    {openMenuPlanId === plan.id && (
+                      <div className="plan-options-menu">
+                        <button
+                          className="menu-button"
+                          onClick={() => {
+                            movePlanUp(plan);
+                            closePlanMenu();
+                          }}
+                          disabled={index === 0}
+                        >
+                          ↑ Hoch
+                        </button>
+
+                        <button
+                          className="menu-button"
+                          onClick={() => {
+                            movePlanDown(plan);
+                            closePlanMenu();
+                          }}
+                          disabled={index === sortedPlans.length - 1}
+                        >
+                          ↓ Runter
+                        </button>
+
+                        <button
+                          className="menu-button"
+                          onClick={() => {
+                            openPlanDetailModal(plan.id!);
+                            closePlanMenu();
+                          }}
+                        >
+                          Übungen
+                        </button>
+
+                        <button
+                          className="menu-button"
+                          onClick={() => startEditPlan(plan)}
+                        >
+                          Bearbeiten
+                        </button>
+
+                        <button
+                          className="menu-button danger-menu-button"
+                          onClick={() => deletePlan(plan)}
+                        >
+                          Löschen
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {showPlanModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <div>
-                <h3>
-                  {editingPlanId
-                    ? "Trainingsplan bearbeiten"
-                    : "Plan hinzufügen"}
-                </h3>
-                <p>Name und Beschreibung festlegen.</p>
-              </div>
+          {showPlanModal && (
+            <div className="modal-overlay">
+              <div className="modal-card">
+                <div className="modal-header">
+                  <div>
+                    <h3>
+                      {editingPlanId
+                        ? "Trainingsplan bearbeiten"
+                        : "Plan hinzufügen"}
+                    </h3>
+                    <p>Name und Beschreibung festlegen.</p>
+                  </div>
 
-              <button
-                className="secondary-button small-button"
-                onClick={closePlanModal}
-              >
-                Schließen
-              </button>
-            </div>
-
-            <div className="form-block">
-              <input
-                value={planName}
-                onChange={(event) => setPlanName(event.target.value)}
-                placeholder="Name, z. B. Pull & Finger"
-              />
-
-              <textarea
-                value={planDescription}
-                onChange={(event) => setPlanDescription(event.target.value)}
-                placeholder="Beschreibung optional"
-                rows={2}
-              />
-
-              <button onClick={savePlan}>
-                {editingPlanId ? "Plan speichern" : "Plan anlegen"}
-              </button>
-
-              <button className="secondary-button" onClick={closePlanModal}>
-                Abbrechen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPlanDetailModal && selectedPlan && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <div>
-                <h3>Übungen im Plan: {selectedPlan.name}</h3>
-                <p>
-                  Erst Körperteil auswählen, dann die passende Übung hinzufügen.
-                </p>
-              </div>
-
-              <button
-                className="secondary-button small-button"
-                onClick={closePlanDetailModal}
-              >
-                Schließen
-              </button>
-            </div>
-
-            <div className="sub-card inner">
-              <h3>Übung hinzufügen</h3>
-
-              {activeExercises.length === 0 ? (
-                <p>Bitte zuerst aktive Übungen im Menü „Übungen“ anlegen.</p>
-              ) : (
-                <div className="form-block compact">
-                  <select
-                    value={exerciseBodyPartFilter}
-                    onChange={(event) => {
-                      setExerciseBodyPartFilter(
-                        event.target.value as BodyPart
-                      );
-                      resetDefaultValues();
-                    }}
+                  <button
+                    className="secondary-button small-button"
+                    onClick={closePlanModal}
                   >
-                    <option value="">Körperteil auswählen</option>
-                    {bodyParts.map((bodyPart) => (
-                      <option key={bodyPart} value={bodyPart}>
-                        {bodyPart}
-                      </option>
-                    ))}
-                  </select>
+                    Schließen
+                  </button>
+                </div>
 
-                  <select
-                    value={selectedExerciseId}
-                    disabled={!exerciseBodyPartFilter}
-                    onChange={(event) =>
-                      prefillFromExercise(
-                        event.target.value ? Number(event.target.value) : ""
-                      )
-                    }
-                  >
-                    <option value="">Übung auswählen</option>
-                    {filteredPlanExercises.map((exercise) => (
-                      <option key={exercise.id} value={exercise.id}>
-                        {exercise.name} · {formatExerciseType(exercise.type)}
-                      </option>
-                    ))}
-                  </select>
-
-                  {selectedExercise && selectedExercise.type !== "boulder" && (
-                    <p className="hint">
-                      Zielwerte aus der Übung wurden vorausgefüllt. Du kannst
-                      sie für diesen Plan ändern.
-                    </p>
-                  )}
-
-                  {selectedExercise?.type === "boulder" && (
-                    <p className="hint">
-                      Boulder-Details wie Style, Grad und Versuche werden später
-                      in der Session eingetragen.
-                    </p>
-                  )}
-
-                  {selectedExercise && selectedExercise.type !== "boulder" && (
-                    <>
-                      <input
-                        type="number"
-                        min="0"
-                        value={defaultSets}
-                        onChange={(event) =>
-                          setDefaultSets(event.target.value)
-                        }
-                        placeholder="Standard-Sätze"
-                      />
-
-                      {selectedExercise.type === "reps" && (
-                        <input
-                          type="number"
-                          min="0"
-                          value={defaultReps}
-                          onChange={(event) =>
-                            setDefaultReps(event.target.value)
-                          }
-                          placeholder="Standard-Wiederholungen"
-                        />
-                      )}
-
-                      {selectedExercise.type === "time" && (
-                        <input
-                          type="number"
-                          min="0"
-                          value={defaultTimeSeconds}
-                          onChange={(event) =>
-                            setDefaultTimeSeconds(event.target.value)
-                          }
-                          placeholder="Standard-Zeit in Sekunden"
-                        />
-                      )}
-
-                      <input
-                        type="number"
-                        value={defaultWeightKg}
-                        onChange={(event) =>
-                          setDefaultWeightKg(event.target.value)
-                        }
-                        placeholder="Standard-Zusatzgewicht kg"
-                      />
-                    </>
-                  )}
+                <div className="form-block">
+                  <input
+                    value={planName}
+                    onChange={(event) => setPlanName(event.target.value)}
+                    placeholder="Name, z. B. Pull & Finger"
+                  />
 
                   <textarea
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    placeholder={
-                      selectedExercise?.type === "boulder"
-                        ? "Notiz zum Boulder im Plan optional"
-                        : "Notiz optional"
-                    }
+                    value={planDescription}
+                    onChange={(event) => setPlanDescription(event.target.value)}
+                    placeholder="Beschreibung optional"
                     rows={2}
                   />
 
-                  <button onClick={addExerciseToPlan}>
-                    Übung zum Plan hinzufügen
+                  <button onClick={savePlan}>
+                    {editingPlanId ? "Plan speichern" : "Plan anlegen"}
+                  </button>
+
+                  <button className="secondary-button" onClick={closePlanModal}>
+                    Abbrechen
                   </button>
                 </div>
-              )}
+              </div>
             </div>
+          )}
 
-            <div className="list">
-              {selectedPlanExercises.length === 0 && (
-                <p>Dieser Plan enthält noch keine Übungen.</p>
-              )}
+          {showPlanDetailModal && selectedPlan && (
+            <div className="modal-overlay">
+              <div className="modal-card">
+                <div className="modal-header">
+                  <div>
+                    <h3>Übungen im Plan: {selectedPlan.name}</h3>
+                    <p>
+                      Erst Körperteil auswählen, dann die passende Übung
+                      hinzufügen.
+                    </p>
+                  </div>
 
-              {selectedPlanExercises.map((item, index) => {
-                const exercise = exerciseMap.get(item.exerciseId);
+                  <button
+                    className="secondary-button small-button"
+                    onClick={closePlanDetailModal}
+                  >
+                    Schließen
+                  </button>
+                </div>
 
-                return (
-                  <div key={item.id} className="list-item">
-                    <h3>
-                      {index + 1}. {exercise?.name ?? "Unbekannte Übung"}
-                    </h3>
+                <div className="sub-card inner">
+                  <h3>Übung hinzufügen</h3>
 
-                    <p>{formatPlanExercise(item, exercise)}</p>
-
-                    {item.notes && <p>Notiz: {item.notes}</p>}
-
-                    <div className="action-row">
-                      <button
-                        className="secondary-button"
-                        onClick={() => movePlanExerciseUp(item)}
-                        disabled={index === 0}
+                  {activeExercises.length === 0 ? (
+                    <p>Bitte zuerst aktive Übungen im Tab „Übungen“ anlegen.</p>
+                  ) : (
+                    <div className="form-block compact">
+                      <select
+                        value={exerciseBodyPartFilter}
+                        onChange={(event) => {
+                          setExerciseBodyPartFilter(
+                            event.target.value as BodyPart
+                          );
+                          resetDefaultValues();
+                        }}
                       >
-                        ↑ Hoch
-                      </button>
+                        <option value="">Körperteil auswählen</option>
+                        {bodyParts.map((bodyPart) => (
+                          <option key={bodyPart} value={bodyPart}>
+                            {bodyPart}
+                          </option>
+                        ))}
+                      </select>
 
-                      <button
-                        className="secondary-button"
-                        onClick={() => movePlanExerciseDown(item)}
-                        disabled={index === selectedPlanExercises.length - 1}
+                      <select
+                        value={selectedExerciseId}
+                        disabled={!exerciseBodyPartFilter}
+                        onChange={(event) =>
+                          prefillFromExercise(
+                            event.target.value ? Number(event.target.value) : ""
+                          )
+                        }
                       >
-                        ↓ Runter
-                      </button>
+                        <option value="">Übung auswählen</option>
+                        {filteredPlanExercises.map((exercise) => (
+                          <option key={exercise.id} value={exercise.id}>
+                            {exercise.name} · {formatExerciseType(exercise.type)}
+                          </option>
+                        ))}
+                      </select>
 
-                      <button
-                        className="danger-button"
-                        onClick={() => removeExerciseFromPlan(item)}
-                      >
-                        Entfernen
+                      {selectedExercise && selectedExercise.type !== "boulder" && (
+                        <p className="hint">
+                          Zielwerte aus der Übung wurden vorausgefüllt. Du
+                          kannst sie für diesen Plan ändern.
+                        </p>
+                      )}
+
+                      {selectedExercise?.type === "boulder" && (
+                        <p className="hint">
+                          Boulder-Details wie Style, Grad und Versuche werden
+                          später in der Session eingetragen.
+                        </p>
+                      )}
+
+                      {selectedExercise && selectedExercise.type !== "boulder" && (
+                        <>
+                          <input
+                            type="number"
+                            min="0"
+                            value={defaultSets}
+                            onChange={(event) =>
+                              setDefaultSets(event.target.value)
+                            }
+                            placeholder="Standard-Sätze"
+                          />
+
+                          {selectedExercise.type === "reps" && (
+                            <input
+                              type="number"
+                              min="0"
+                              value={defaultReps}
+                              onChange={(event) =>
+                                setDefaultReps(event.target.value)
+                              }
+                              placeholder="Standard-Wiederholungen"
+                            />
+                          )}
+
+                          {selectedExercise.type === "time" && (
+                            <input
+                              type="number"
+                              min="0"
+                              value={defaultTimeSeconds}
+                              onChange={(event) =>
+                                setDefaultTimeSeconds(event.target.value)
+                              }
+                              placeholder="Standard-Zeit in Sekunden"
+                            />
+                          )}
+
+                          <input
+                            type="number"
+                            value={defaultWeightKg}
+                            onChange={(event) =>
+                              setDefaultWeightKg(event.target.value)
+                            }
+                            placeholder="Standard-Zusatzgewicht kg"
+                          />
+                        </>
+                      )}
+
+                      <textarea
+                        value={notes}
+                        onChange={(event) => setNotes(event.target.value)}
+                        placeholder={
+                          selectedExercise?.type === "boulder"
+                            ? "Notiz zum Boulder im Plan optional"
+                            : "Notiz optional"
+                        }
+                        rows={2}
+                      />
+
+                      <button onClick={addExerciseToPlan}>
+                        Übung zum Plan hinzufügen
                       </button>
                     </div>
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+
+                <div className="list">
+                  {selectedPlanExercises.length === 0 && (
+                    <p>Dieser Plan enthält noch keine Übungen.</p>
+                  )}
+
+                  {selectedPlanExercises.map((item, index) => {
+                    const exercise = exerciseMap.get(item.exerciseId);
+
+                    return (
+                      <div key={item.id} className="list-item">
+                        <h3>
+                          {index + 1}. {exercise?.name ?? "Unbekannte Übung"}
+                        </h3>
+
+                        <p>{formatPlanExercise(item, exercise)}</p>
+
+                        {item.notes && <p>Notiz: {item.notes}</p>}
+
+                        <div className="action-row">
+                          <button
+                            className="secondary-button"
+                            onClick={() => movePlanExerciseUp(item)}
+                            disabled={index === 0}
+                          >
+                            ↑ Hoch
+                          </button>
+
+                          <button
+                            className="secondary-button"
+                            onClick={() => movePlanExerciseDown(item)}
+                            disabled={index === selectedPlanExercises.length - 1}
+                          >
+                            ↓ Runter
+                          </button>
+
+                          <button
+                            className="danger-button"
+                            onClick={() => removeExerciseFromPlan(item)}
+                          >
+                            Entfernen
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
+
+      {trainingTab === "exercises" && <ExercisesPage embedded />}
     </section>
   );
 }
@@ -828,5 +891,5 @@ function formatPlanExercise(
 
   return `${item.defaultSets ?? "-"} Sätze × ${
     item.defaultTimeSeconds ?? "-"
-  } sec · ${item.defaultWeightKg ?? 0} kg`;
+  } sek · ${item.defaultWeightKg ?? 0} kg`;
 }
