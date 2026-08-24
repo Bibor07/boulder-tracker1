@@ -7,6 +7,7 @@ import type {
   DiaryEntry,
   DiaryExercise,
   Exercise,
+  ExerciseCategory,
   ExerciseType,
 } from "../../db/types";
 
@@ -29,6 +30,7 @@ const boulderStyles: BoulderStyle[] = [
   "Dynamisch",
   "Leiste",
   "Parkur Style",
+  "Traverse",
 ];
 
 const boulderGrades: BoulderGrade[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -61,8 +63,12 @@ export default function ExercisesPage({
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
-  const [bodyPart, setBodyPart] = useState<BodyPart>("Rücken");
-  const [type, setType] = useState<ExerciseType>("reps");
+  const [category, setCategory] =
+    useState<ExerciseCategory>("strength");
+  const [bodyPart, setBodyPart] =
+    useState<BodyPart>("Rücken");
+  const [type, setType] =
+    useState<ExerciseType>("reps");
 
   const [targetSets, setTargetSets] = useState("");
   const [targetReps, setTargetReps] = useState("");
@@ -121,6 +127,7 @@ export default function ExercisesPage({
   function resetForm() {
     setEditingId(null);
     setName("");
+    setCategory("strength")
     setBodyPart("Rücken");
     setType("reps");
 
@@ -170,6 +177,7 @@ export default function ExercisesPage({
 
     const exerciseData = {
       name: name.trim(),
+      category,
       bodyPart,
       type,
 
@@ -218,6 +226,12 @@ export default function ExercisesPage({
 
     setEditingId(exercise.id);
     setName(exercise.name);
+    setCategory(
+      exercise.category ??
+        (exercise.type === "boulder"
+          ? "boulder"
+          : "strength")
+      );
     setBodyPart(exercise.bodyPart);
     setType(exercise.type);
 
@@ -342,21 +356,33 @@ export default function ExercisesPage({
                 placeholder="Übungsname"
               />
 
+              <label className="field-label">Kategorie</label>
+
               <select
-                value={type}
+                value={category}
                 onChange={(event) => {
-                  const newType = event.target.value as ExerciseType;
+                  const nextCategory =
+                    event.target.value as ExerciseCategory;
 
-                  setType(newType);
+                  setCategory(nextCategory);
 
-                  if (newType === "boulder") {
+                  if (nextCategory === "boulder") {
+                    setType("boulder");
                     setBodyPart("Bouldern");
                     setTargetSets("");
                     setTargetReps("");
                     setTargetTimeSeconds("");
                   } else {
+                    if (type === "boulder") {
+                      setType("reps");
+                    }
+
                     if (bodyPart === "Bouldern") {
-                      setBodyPart("Rücken");
+                      setBodyPart(
+                        nextCategory === "mobility"
+                          ? "Ganzkörper"
+                          : "Rücken"
+                      );
                     }
 
                     setTargetBoulderStyle("");
@@ -364,9 +390,40 @@ export default function ExercisesPage({
                   }
                 }}
               >
-                <option value="reps">Wiederholungen</option>
-                <option value="time">Zeit</option>
+                <option value="strength">Kraft</option>
+                <option value="mobility">Beweglichkeit</option>
                 <option value="boulder">Bouldern</option>
+              </select>
+
+              <label className="field-label">
+                Erfassungsart
+              </label>
+
+              <select
+                value={type}
+                disabled={category === "boulder"}
+                onChange={(event) => {
+                  const newType =
+                    event.target.value as ExerciseType;
+
+                  setType(newType);
+
+                  if (newType !== "boulder") {
+                    setTargetBoulderStyle("");
+                    setTargetBoulderGrade("");
+                  }
+                }}
+              >
+                {category === "boulder" ? (
+                  <option value="boulder">Bouldern</option>
+                ) : (
+                  <>
+                    <option value="reps">
+                      Wiederholungen
+                    </option>
+                    <option value="time">Zeit</option>
+                  </>
+                )}
               </select>
 
               <select
@@ -521,7 +578,9 @@ export default function ExercisesPage({
                   <h3>{exercise.name}</h3>
 
                   <p>
-                    {exercise.bodyPart} · {formatExerciseType(exercise.type)}
+                    {formatExerciseCategory(exercise.category)} ·{" "}
+                    {exercise.bodyPart} ·{" "}
+                    {formatExerciseType(exercise.type)}
                   </p>
                 </div>
 
@@ -648,4 +707,18 @@ function formatLastExecution(
   return `${dateText}${diaryExercise.sets ?? "-"} Sätze × ${
     diaryExercise.timeSeconds ?? "-"
   } sek · ${diaryExercise.weightKg ?? 0} kg`;
+}
+
+function formatExerciseCategory(
+  category: ExerciseCategory | undefined
+) {
+  if (category === "boulder") {
+    return "Bouldern";
+  }
+
+  if (category === "mobility") {
+    return "Beweglichkeit";
+  }
+
+  return "Kraft";
 }
