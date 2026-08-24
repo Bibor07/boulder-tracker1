@@ -965,3 +965,68 @@ button:disabled {
   border: none;
   background: transparent;
 }
+.session-sticky-timer {
+  position: sticky;
+  top: 0;
+  z-index: 120;
+
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+
+  margin: 0 0 16px;
+  padding: 12px;
+
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  border-radius: 18px;
+
+  background: rgba(9, 9, 11, 0.96);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+
+  backdrop-filter: blur(12px);
+}
+
+.session-timer-display {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.session-timer-display span {
+  color: #a1a1aa;
+  font-size: 12px;
+}
+
+.session-timer-display strong {
+  color: #34d399;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.session-timer-actions {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 8px;
+}
+
+.session-timer-actions button {
+  width: auto;
+  min-width: 80px;
+  padding: 10px 12px;
+}
+
+@media (max-width: 520px) {
+  .session-sticky-timer {
+    grid-template-columns: 1fr;
+  }
+
+  .session-timer-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .session-timer-actions button {
+    width: 100%;
+  }
+}
