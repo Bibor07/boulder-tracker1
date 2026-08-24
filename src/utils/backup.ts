@@ -7,10 +7,14 @@ type BackupTableName =
   | "diaryEntries"
   | "diaryExercises"
   | "bodyMeasurements"
-  | "appSettings";
+  | "settings"
+  | "supersets"
+  | "supersetExercises";
+
+type BackupVersion = 1 | 2;
 
 export type AppBackup = {
-  version: 1;
+  version: BackupVersion;
   exportedAt: string;
   data: Partial<Record<BackupTableName, unknown[]>>;
 };
@@ -22,15 +26,17 @@ const backupTables: BackupTableName[] = [
   "diaryEntries",
   "diaryExercises",
   "bodyMeasurements",
-  "appSettings",
+  "settings",
+  "supersets",
+  "supersetExercises",
 ];
 
-async function tableExists(tableName: string) {
+function tableExists(tableName: string) {
   return db.tables.some((table) => table.name === tableName);
 }
 
 async function exportTable(tableName: BackupTableName) {
-  if (!(await tableExists(tableName))) {
+  if (!tableExists(tableName)) {
     return [];
   }
 
@@ -45,7 +51,7 @@ export async function createBackup(): Promise<AppBackup> {
   }
 
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     data,
   };
@@ -67,17 +73,24 @@ export async function exportBackupJson() {
 
   link.href = url;
   link.download = fileName;
+
   document.body.appendChild(link);
   link.click();
   link.remove();
 
   window.URL.revokeObjectURL(url);
 
-  localStorage.setItem("lastBackupAt", new Date().toISOString());
+  localStorage.setItem(
+    "lastBackupAt",
+    new Date().toISOString()
+  );
 }
 
-async function importTable(tableName: BackupTableName, rows: unknown[] = []) {
-  if (!(await tableExists(tableName))) {
+async function importTable(
+  tableName: BackupTableName,
+  rows: unknown[] = []
+) {
+  if (!tableExists(tableName)) {
     return;
   }
 
@@ -88,21 +101,92 @@ async function importTable(tableName: BackupTableName, rows: unknown[] = []) {
   }
 }
 
+function isSupportedBackup(value: unknown): value is AppBackup {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<AppBackup>;
+
+  if (
+    candidate.version !== 1 &&
+    candidate.version !== 2
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    candidate.data &&
+      typeof candidate.data === "object"
+  );
+}
+
+function migrateImportedExercises(
+  rows: unknown[]
+): unknown[] {
+  return rows.map((row) => {
+    if (!row || typeof row !== "object") {
+      return row;
+    }
+
+    const exercise = {
+      ...(row as Record<string, unknown>),
+    };
+
+    if (
+      exercise.category !== "strength" &&
+      exercise.category !== "mobility" &&
+      exercise.category !== "boulder"
+    ) {
+      exercise.category =
+        exercise.type === "boulder"
+          ? "boulder"
+          : "strength";
+    }
+
+    return exercise;
+  });
+}
+
+function prepareImportedRows(
+  tableName: BackupTableName,
+  rows: unknown[]
+) {
+  if (tableName === "exercises") {
+    return migrateImportedExercises(rows);
+  }
+
+  return rows;
+}
+
 export async function importBackupJson(file: File) {
   const text = await file.text();
-  const backup = JSON.parse(text) as AppBackup;
+  const parsedBackup: unknown = JSON.parse(text);
 
-  if (!backup || backup.version !== 1 || !backup.data) {
+  if (!isSupportedBackup(parsedBackup)) {
     throw new Error("Ungültige Backup-Datei.");
   }
 
+  const backup = parsedBackup;
+
   await db.transaction("rw", db.tables, async () => {
     for (const tableName of backupTables) {
-      await importTable(tableName, backup.data[tableName] ?? []);
+      const backupRows =
+        backup.data[tableName] ?? [];
+
+      const preparedRows = prepareImportedRows(
+        tableName,
+        backupRows
+      );
+
+      await importTable(tableName, preparedRows);
     }
   });
 
-  localStorage.setItem("lastBackupAt", new Date().toISOString());
+  localStorage.setItem(
+    "lastBackupAt",
+    new Date().toISOString()
+  );
 }
 
 export function getLastBackupAt() {
@@ -112,11 +196,16 @@ export function getLastBackupAt() {
 export function shouldShowBackupReminder(days = 7) {
   const lastBackupAt = getLastBackupAt();
 
-  if (!lastBackupAt) return true;
+  if (!lastBackupAt) {
+    return true;
+  }
 
   const lastBackupTime = new Date(lastBackupAt).getTime();
   const now = Date.now();
-  const diffDays = (now - lastBackupTime) / (1000 * 60 * 60 * 24);
+
+  const diffDays =
+    (now - lastBackupTime) /
+    (1000 * 60 * 60 * 24);
 
   return diffDays >= days;
 }
@@ -124,7 +213,9 @@ export function shouldShowBackupReminder(days = 7) {
 export function formatLastBackupDate() {
   const lastBackupAt = getLastBackupAt();
 
-  if (!lastBackupAt) return "Noch kein Backup erstellt";
+  if (!lastBackupAt) {
+    return "Noch kein Backup erstellt";
+  }
 
   return new Date(lastBackupAt).toLocaleString("de-DE");
 }
