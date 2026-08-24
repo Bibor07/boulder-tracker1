@@ -2151,8 +2151,7 @@ export default function DiaryPage() {
                               )
                             }
                           >
-                            + Gleichen Boulder
-                            hinzufügen
+                            + Satz hinzufügen
                           </button>
                         </div>
                       )}
