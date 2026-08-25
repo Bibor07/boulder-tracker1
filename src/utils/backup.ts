@@ -4,6 +4,7 @@ type BackupTableName =
   | "exercises"
   | "trainingPlans"
   | "trainingPlanExercises"
+  | "trainingPlanSupersets"
   | "diaryEntries"
   | "diaryExercises"
   | "bodyMeasurements"
@@ -11,7 +12,7 @@ type BackupTableName =
   | "supersets"
   | "supersetExercises";
 
-type BackupVersion = 1 | 2;
+type BackupVersion = 1 | 2 | 3;
 
 export type AppBackup = {
   version: BackupVersion;
@@ -23,6 +24,7 @@ const backupTables: BackupTableName[] = [
   "exercises",
   "trainingPlans",
   "trainingPlanExercises",
+  "trainingPlanSupersets",
   "diaryEntries",
   "diaryExercises",
   "bodyMeasurements",
@@ -51,7 +53,7 @@ export async function createBackup(): Promise<AppBackup> {
   }
 
   return {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     data,
   };
@@ -110,7 +112,8 @@ function isSupportedBackup(value: unknown): value is AppBackup {
 
   if (
     candidate.version !== 1 &&
-    candidate.version !== 2
+    candidate.version !== 2 &&
+    candidate.version !== 3
   ) {
     return false;
   }
