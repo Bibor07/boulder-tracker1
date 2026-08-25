@@ -54,6 +54,12 @@ export interface TrainingPlan {
 
   position?: number;
 
+  /**
+   * Legt fest, ob der Trainingsplan regulär
+   * in den Auswahllisten angezeigt wird.
+   */
+  isActive: boolean;
+
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +76,16 @@ export interface TrainingPlanExercise {
   defaultTimeSeconds?: number;
   defaultWeightKg?: number;
 
+  notes?: string;
+}
+
+export interface TrainingPlanSuperset {
+  id?: number;
+
+  planId: number;
+  supersetId: number;
+
+  position: number;
   notes?: string;
 }
 
@@ -146,10 +162,8 @@ export interface Superset {
   id?: number;
   name: string;
 
-  /**
-   * Anzahl der Durchgänge des Supersatzes.
-   */
   rounds: number;
+  isActive: boolean;
 
   notes?: string;
 
