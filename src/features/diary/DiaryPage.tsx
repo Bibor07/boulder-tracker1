@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+
 import { db } from "../../db/db";
 
 import type {
@@ -9,8 +10,11 @@ import type {
   DiaryExerciseSet,
   Exercise,
   ExerciseCategory,
+  Superset,
+  SupersetExercise,
   TrainingPlan,
   TrainingPlanExercise,
+  TrainingPlanSuperset,
 } from "../../db/types";
 
 import {
@@ -33,18 +37,13 @@ type DraftSessionExercise = {
 
   boulderStyle: BoulderStyle | "";
   boulderGrade: BoulderGrade | "";
-
-  /**
-   * Anzahl unterschiedlicher Trainingstage,
-   * an denen der Boulder versucht wurde.
-   */
   boulderSessions: string;
-
-  /**
-   * Flash ist unabhängig von der Anzahl
-   * der Trainingstage.
-   */
   isFlash: boolean;
+
+  supersetInstanceId?: string;
+  supersetId?: number;
+  supersetName?: string;
+  supersetRound?: number;
 
   notes: string;
 };
@@ -125,99 +124,79 @@ function formatExerciseCategory(
 }
 
 export default function DiaryPage() {
-  const [exercises, setExercises] = useState<
-    Exercise[]
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
+  const [diaryExercises, setDiaryExercises] = useState<DiaryExercise[]>([]);
+
+  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
+  const [trainingPlanExercises, setTrainingPlanExercises] = useState<
+    TrainingPlanExercise[]
   >([]);
 
-  const [diaryEntries, setDiaryEntries] = useState<
-    DiaryEntry[]
+  const [trainingPlanSupersets, setTrainingPlanSupersets] = useState<
+    TrainingPlanSuperset[]
   >([]);
 
-  const [diaryExercises, setDiaryExercises] =
-    useState<DiaryExercise[]>([]);
-
-  const [trainingPlans, setTrainingPlans] = useState<
-    TrainingPlan[]
+  const [supersets, setSupersets] = useState<Superset[]>([]);
+  const [supersetExercises, setSupersetExercises] = useState<
+    SupersetExercise[]
   >([]);
 
-  const [
-    trainingPlanExercises,
-    setTrainingPlanExercises,
-  ] = useState<TrainingPlanExercise[]>([]);
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
+  const [showSupersetModal, setShowSupersetModal] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
 
-  const [showSessionModal, setShowSessionModal] =
-    useState(false);
-
-  const [showPlanModal, setShowPlanModal] =
-    useState(false);
-
-  const [showExerciseModal, setShowExerciseModal] =
-    useState(false);
-
-  const [showStatsModal, setShowStatsModal] =
-    useState(false);
-
-  const [editingEntryId, setEditingEntryId] = useState<
-    number | null
-  >(null);
-
-  const [
-    showEntryActionMenu,
-    setShowEntryActionMenu,
-  ] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [showEntryActionMenu, setShowEntryActionMenu] = useState(false);
 
   const [date, setDate] = useState(todayIsoDate());
   const [title, setTitle] = useState("");
   const [entryNotes, setEntryNotes] = useState("");
 
-  const [selectedExerciseIds, setSelectedExerciseIds] =
-    useState<number[]>([]);
+  const [selectedExerciseIds, setSelectedExerciseIds] = useState<number[]>([]);
 
-  const [
-    exerciseCategoryFilter,
-    setExerciseCategoryFilter,
-  ] = useState<ExerciseCategory | "">("");
+  const [exerciseCategoryFilter, setExerciseCategoryFilter] = useState<
+    ExerciseCategory | ""
+  >("");
 
-  const [
-    exerciseBodyPartFilter,
-    setExerciseBodyPartFilter,
-  ] = useState("Alle");
+  const [exerciseBodyPartFilter, setExerciseBodyPartFilter] =
+    useState("Alle");
 
   const [draftExercises, setDraftExercises] = useState<
     DraftSessionExercise[]
   >([]);
 
-  const [isTimerRunning, setIsTimerRunning] =
-    useState(false);
-
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
 
-  const [
-    backupReminderVisible,
-    setBackupReminderVisible,
-  ] = useState(shouldShowBackupReminder(7));
+  const [backupReminderVisible, setBackupReminderVisible] = useState(
+    shouldShowBackupReminder(7)
+  );
 
   async function loadData() {
-    const exerciseData =
-      await db.exercises.toArray();
+    const exerciseData = await db.exercises.toArray();
+    const entryData = await db.diaryEntries.toArray();
+    const diaryExerciseData = await db.diaryExercises.toArray();
 
-    const entryData =
-      await db.diaryEntries.toArray();
+    const planData = await db.trainingPlans.toArray();
+    const planExerciseData = await db.trainingPlanExercises.toArray();
+    const planSupersetData = await db.trainingPlanSupersets.toArray();
 
-    const diaryExerciseData =
-      await db.diaryExercises.toArray();
-
-    const planData =
-      await db.trainingPlans.toArray();
-
-    const planExerciseData =
-      await db.trainingPlanExercises.toArray();
+    const supersetData = await db.supersets.toArray();
+    const supersetExerciseData = await db.supersetExercises.toArray();
 
     setExercises(exerciseData);
     setDiaryEntries(entryData);
     setDiaryExercises(diaryExerciseData);
+
     setTrainingPlans(planData);
     setTrainingPlanExercises(planExerciseData);
+    setTrainingPlanSupersets(planSupersetData);
+
+    setSupersets(supersetData);
+    setSupersetExercises(supersetExerciseData);
   }
 
   useEffect(() => {
@@ -241,24 +220,45 @@ export default function DiaryPage() {
   const activeExercises = useMemo(() => {
     return exercises
       .filter((exercise) => exercise.isActive)
-      .sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [exercises]);
+
+  const activeSupersets = useMemo(() => {
+    return supersets
+      .filter((superset) => superset.isActive)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [supersets]);
+
+  const activeTrainingPlans = useMemo(() => {
+    return trainingPlans
+      .filter((plan) => plan.isActive)
+      .sort((a, b) => {
+        const positionA = a.position ?? Number.MAX_SAFE_INTEGER;
+        const positionB = b.position ?? Number.MAX_SAFE_INTEGER;
+
+        if (positionA !== positionB) {
+          return positionA - positionB;
+        }
+
+        return a.name.localeCompare(b.name);
+      });
+  }, [trainingPlans]);
 
   const exerciseMap = useMemo(() => {
     return new Map(
       exercises
-        .filter(
-          (exercise) =>
-            exercise.id !== undefined
-        )
-        .map((exercise) => [
-          exercise.id!,
-          exercise,
-        ])
+        .filter((exercise) => exercise.id !== undefined)
+        .map((exercise) => [exercise.id!, exercise])
     );
   }, [exercises]);
+
+  const supersetMap = useMemo(() => {
+    return new Map(
+      supersets
+        .filter((superset) => superset.id !== undefined)
+        .map((superset) => [superset.id!, superset])
+    );
+  }, [supersets]);
 
   const bodyPartOptions = useMemo(() => {
     if (!exerciseCategoryFilter) {
@@ -270,20 +270,14 @@ export default function DiaryPage() {
         activeExercises
           .filter(
             (exercise) =>
-              exercise.category ===
-              exerciseCategoryFilter
+              exercise.category === exerciseCategoryFilter
           )
-          .map(
-            (exercise) => exercise.bodyPart
-          )
+          .map((exercise) => exercise.bodyPart)
       )
     );
 
     return ["Alle", ...parts];
-  }, [
-    activeExercises,
-    exerciseCategoryFilter,
-  ]);
+  }, [activeExercises, exerciseCategoryFilter]);
 
   const filteredSelectableExercises = useMemo(() => {
     if (!exerciseCategoryFilter) {
@@ -292,13 +286,11 @@ export default function DiaryPage() {
 
     return activeExercises.filter((exercise) => {
       const matchesCategory =
-        exercise.category ===
-        exerciseCategoryFilter;
+        exercise.category === exerciseCategoryFilter;
 
       const matchesBodyPart =
         exerciseBodyPartFilter === "Alle" ||
-        exercise.bodyPart ===
-          exerciseBodyPartFilter;
+        exercise.bodyPart === exerciseBodyPartFilter;
 
       return matchesCategory && matchesBodyPart;
     });
@@ -321,9 +313,7 @@ export default function DiaryPage() {
       alert("Backup wurde erstellt.");
     } catch (error) {
       console.error(error);
-      alert(
-        "Backup konnte nicht erstellt werden."
-      );
+      alert("Backup konnte nicht erstellt werden.");
     }
   }
 
@@ -331,6 +321,7 @@ export default function DiaryPage() {
     setShowSessionModal(false);
     setShowPlanModal(false);
     setShowExerciseModal(false);
+    setShowSupersetModal(false);
     setShowStatsModal(false);
   }
 
@@ -373,8 +364,16 @@ export default function DiaryPage() {
     setExerciseBodyPartFilter("Alle");
 
     setShowSessionModal(false);
+    setShowSupersetModal(false);
     setShowStatsModal(false);
     setShowExerciseModal(true);
+  }
+
+  function openSupersetSelection() {
+    setShowSessionModal(false);
+    setShowExerciseModal(false);
+    setShowStatsModal(false);
+    setShowSupersetModal(true);
   }
 
   function closeExerciseSelection() {
@@ -387,24 +386,58 @@ export default function DiaryPage() {
     }
   }
 
+  function closeSupersetSelection() {
+    setShowSupersetModal(false);
+
+    if (draftExercises.length > 0) {
+      setShowStatsModal(true);
+    } else {
+      setShowSessionModal(true);
+    }
+  }
+
   function getPlanExerciseNames(planId?: number) {
     if (!planId) {
-      return "Keine Übungen";
+      return "Keine Einzelübungen";
     }
 
     const names = trainingPlanExercises
       .filter((item) => item.planId === planId)
-      .sort(
-        (a, b) => a.position - b.position
-      )
-      .map(
-        (item) =>
-          exerciseMap.get(item.exerciseId)?.name
-      )
-      .filter(
-        (name): name is string =>
-          Boolean(name)
-      );
+      .sort((a, b) => a.position - b.position)
+      .map((item) => exerciseMap.get(item.exerciseId)?.name)
+      .filter((name): name is string => Boolean(name));
+
+    return names.length > 0
+      ? names.join(" · ")
+      : "Keine Einzelübungen";
+  }
+
+  function getPlanSupersetNames(planId?: number) {
+    if (!planId) {
+      return "Keine Supersätze";
+    }
+
+    const names = trainingPlanSupersets
+      .filter((item) => item.planId === planId)
+      .sort((a, b) => a.position - b.position)
+      .map((item) => supersetMap.get(item.supersetId)?.name)
+      .filter((name): name is string => Boolean(name));
+
+    return names.length > 0
+      ? names.join(" · ")
+      : "Keine Supersätze";
+  }
+
+  function getSupersetExerciseNames(supersetId?: number) {
+    if (!supersetId) {
+      return "Keine Übungen";
+    }
+
+    const names = supersetExercises
+      .filter((item) => item.supersetId === supersetId)
+      .sort((a, b) => a.position - b.position)
+      .map((item) => exerciseMap.get(item.exerciseId)?.name)
+      .filter((name): name is string => Boolean(name));
 
     return names.length > 0
       ? names.join(" · ")
@@ -420,25 +453,15 @@ export default function DiaryPage() {
   ): DraftSetRow[] {
     const count = Math.max(
       1,
-      Number(
-        setCount ||
-          exercise.targetSets ||
-          1
-      )
+      Number(setCount || exercise.targetSets || 1)
     );
 
-    return Array.from({
-      length: count,
-    }).map(() => ({
+    return Array.from({ length: count }).map(() => ({
       id: makeId(),
 
       reps:
         exercise.type === "reps"
-          ? String(
-              reps ??
-                exercise.targetReps ??
-                ""
-            )
+          ? String(reps ?? exercise.targetReps ?? "")
           : "",
 
       timeSeconds:
@@ -479,27 +502,81 @@ export default function DiaryPage() {
           : "",
 
       boulderSessions:
-        exercise.type === "boulder"
-          ? "1"
-          : "",
+        exercise.type === "boulder" ? "1" : "",
 
       isFlash: false,
       notes: "",
     };
   }
 
+  function createSupersetDrafts(
+    superset: Superset
+  ): DraftSessionExercise[] {
+    if (!superset.id) {
+      return [];
+    }
+
+    const definitionItems = supersetExercises
+      .filter((item) => item.supersetId === superset.id)
+      .sort((a, b) => a.position - b.position);
+
+    if (definitionItems.length === 0) {
+      return [];
+    }
+
+    const instanceId = makeId();
+    const drafts: DraftSessionExercise[] = [];
+
+    for (
+      let round = 1;
+      round <= superset.rounds;
+      round += 1
+    ) {
+      definitionItems.forEach((definitionItem) => {
+        const exercise = exerciseMap.get(
+          definitionItem.exerciseId
+        );
+
+        if (!exercise || exercise.type === "boulder") {
+          return;
+        }
+
+        drafts.push({
+          exerciseId: exercise.id!,
+
+          setRows: createSetRows(
+            exercise,
+            1,
+            definitionItem.defaultReps,
+            definitionItem.defaultTimeSeconds,
+            definitionItem.defaultWeightKg
+          ),
+
+          boulderStyle: "",
+          boulderGrade: "",
+          boulderSessions: "",
+          isFlash: false,
+
+          supersetInstanceId: instanceId,
+          supersetId: superset.id,
+          supersetName: superset.name,
+          supersetRound: round,
+
+          notes: definitionItem.notes ?? "",
+        });
+      });
+    }
+
+    return drafts;
+  }
+
   function createFallbackSetRowsFromDiaryExercise(
     item: DiaryExercise,
     exercise: Exercise
   ): DraftSetRow[] {
-    const setCount = Math.max(
-      1,
-      Number(item.sets || 1)
-    );
+    const setCount = Math.max(1, Number(item.sets || 1));
 
-    return Array.from({
-      length: setCount,
-    }).map(() => ({
+    return Array.from({ length: setCount }).map(() => ({
       id: makeId(),
 
       reps:
@@ -512,176 +589,193 @@ export default function DiaryPage() {
           ? item.timeSeconds?.toString() ?? ""
           : "",
 
-      weightKg:
-        item.weightKg?.toString() ?? "",
+      weightKg: item.weightKg?.toString() ?? "",
     }));
   }
 
   function convertDiaryExerciseToDraft(
     item: DiaryExercise
   ): DraftSessionExercise {
-    const exercise = exerciseMap.get(
-      item.exerciseId
-    );
+    const exercise = exerciseMap.get(item.exerciseId);
+
+    const savedSuperset = item.supersetInstanceId
+      ? supersets.find((candidate) =>
+          supersetExercises.some(
+            (definition) =>
+              definition.supersetId === candidate.id &&
+              definition.exerciseId === item.exerciseId
+          )
+        )
+      : undefined;
 
     if (!exercise) {
       return {
         id: item.id,
         exerciseId: item.exerciseId,
         setRows: [],
-        boulderStyle:
-          item.boulderStyle ?? "",
-        boulderGrade:
-          item.boulderGrade ?? "",
+
+        boulderStyle: item.boulderStyle ?? "",
+        boulderGrade: item.boulderGrade ?? "",
         boulderSessions:
-          item.boulderSessions?.toString() ??
-          "1",
+          item.boulderSessions?.toString() ?? "1",
         isFlash: item.isFlash ?? false,
+
+        supersetInstanceId: item.supersetInstanceId,
+        supersetId: savedSuperset?.id,
+        supersetName: savedSuperset?.name,
+        supersetRound: item.supersetRound,
+
         notes: item.notes ?? "",
       };
     }
 
-    if (
-      item.setRows &&
-      item.setRows.length > 0
-    ) {
-      return {
-        id: item.id,
-        exerciseId: item.exerciseId,
-
-        setRows: item.setRows.map((row) => ({
-          id: row.id || makeId(),
-          reps:
-            row.reps?.toString() ?? "",
-          timeSeconds:
-            row.timeSeconds?.toString() ??
-            "",
-          weightKg:
-            row.weightKg?.toString() ?? "",
-        })),
-
-        boulderStyle:
-          item.boulderStyle ?? "",
-
-        boulderGrade:
-          item.boulderGrade ?? "",
-
-        boulderSessions:
-          item.boulderSessions?.toString() ??
-          "1",
-
-        isFlash: item.isFlash ?? false,
-        notes: item.notes ?? "",
-      };
-    }
+    const rows =
+      item.setRows && item.setRows.length > 0
+        ? item.setRows.map((row) => ({
+            id: row.id || makeId(),
+            reps: row.reps?.toString() ?? "",
+            timeSeconds:
+              row.timeSeconds?.toString() ?? "",
+            weightKg:
+              row.weightKg?.toString() ?? "",
+          }))
+        : exercise.type === "boulder"
+        ? []
+        : createFallbackSetRowsFromDiaryExercise(
+            item,
+            exercise
+          );
 
     return {
       id: item.id,
       exerciseId: item.exerciseId,
+      setRows: rows,
 
-      setRows:
-        exercise.type === "boulder"
-          ? []
-          : createFallbackSetRowsFromDiaryExercise(
-              item,
-              exercise
-            ),
-
-      boulderStyle:
-        item.boulderStyle ?? "",
-
-      boulderGrade:
-        item.boulderGrade ?? "",
-
+      boulderStyle: item.boulderStyle ?? "",
+      boulderGrade: item.boulderGrade ?? "",
       boulderSessions:
-        item.boulderSessions?.toString() ??
-        "1",
-
+        item.boulderSessions?.toString() ?? "1",
       isFlash: item.isFlash ?? false,
+
+      supersetInstanceId: item.supersetInstanceId,
+      supersetId: savedSuperset?.id,
+      supersetName: savedSuperset?.name,
+      supersetRound: item.supersetRound,
+
       notes: item.notes ?? "",
     };
   }
 
-  function loadPlanIntoStats(
-    plan: TrainingPlan
+  function loadSupersetIntoSession(
+    superset: Superset
   ) {
+    const drafts = createSupersetDrafts(superset);
+
+    if (drafts.length === 0) {
+      alert(
+        "Dieser Supersatz enthält keine verwendbaren Übungen."
+      );
+
+      return;
+    }
+
+    setDraftExercises((current) => [
+      ...current,
+      ...drafts,
+    ]);
+
+    if (!title.trim()) {
+      setTitle(superset.name);
+    }
+
+    setShowSupersetModal(false);
+    setShowStatsModal(true);
+  }
+
+  function loadPlanIntoStats(plan: TrainingPlan) {
     if (!plan.id) {
       return;
     }
 
     const planItems = trainingPlanExercises
-      .filter(
-        (item) => item.planId === plan.id
-      )
-      .sort(
-        (a, b) => a.position - b.position
-      );
+      .filter((item) => item.planId === plan.id)
+      .sort((a, b) => a.position - b.position);
 
-    if (planItems.length === 0) {
+    const planSupersetItems = trainingPlanSupersets
+      .filter((item) => item.planId === plan.id)
+      .sort((a, b) => a.position - b.position);
+
+    if (
+      planItems.length === 0 &&
+      planSupersetItems.length === 0
+    ) {
       alert(
-        "Dieser Trainingsplan enthält noch keine Übungen."
+        "Dieser Trainingsplan enthält noch keine Übungen oder Supersätze."
       );
 
       return;
     }
 
-    const draftItems = planItems
-      .map(
-        (
-          item
-        ): DraftSessionExercise | null => {
-          const exercise = exerciseMap.get(
-            item.exerciseId
-          );
+    const normalDrafts = planItems
+      .map((item): DraftSessionExercise | null => {
+        const exercise = exerciseMap.get(item.exerciseId);
 
-          if (!exercise) {
-            return null;
-          }
-
-          return {
-            exerciseId: item.exerciseId,
-
-            setRows:
-              exercise.type === "boulder"
-                ? []
-                : createSetRows(
-                    exercise,
-                    item.defaultSets,
-                    item.defaultReps,
-                    item.defaultTimeSeconds,
-                    item.defaultWeightKg
-                  ),
-
-            boulderStyle:
-              exercise.type === "boulder"
-                ? exercise.targetBoulderStyle ??
-                  ""
-                : "",
-
-            boulderGrade:
-              exercise.type === "boulder"
-                ? exercise.targetBoulderGrade ??
-                  ""
-                : "",
-
-            boulderSessions:
-              exercise.type === "boulder"
-                ? "1"
-                : "",
-
-            isFlash: false,
-            notes: item.notes ?? "",
-          };
+        if (!exercise) {
+          return null;
         }
-      )
+
+        return {
+          exerciseId: item.exerciseId,
+
+          setRows:
+            exercise.type === "boulder"
+              ? []
+              : createSetRows(
+                  exercise,
+                  item.defaultSets,
+                  item.defaultReps,
+                  item.defaultTimeSeconds,
+                  item.defaultWeightKg
+                ),
+
+          boulderStyle:
+            exercise.type === "boulder"
+              ? exercise.targetBoulderStyle ?? ""
+              : "",
+
+          boulderGrade:
+            exercise.type === "boulder"
+              ? exercise.targetBoulderGrade ?? ""
+              : "",
+
+          boulderSessions:
+            exercise.type === "boulder" ? "1" : "",
+
+          isFlash: false,
+          notes: item.notes ?? "",
+        };
+      })
       .filter(
-        (
-          item
-        ): item is DraftSessionExercise =>
+        (item): item is DraftSessionExercise =>
           item !== null
       );
 
-    setDraftExercises(draftItems);
+    const supersetDrafts = planSupersetItems.flatMap(
+      (item) => {
+        const superset = supersetMap.get(item.supersetId);
+
+        if (!superset) {
+          return [];
+        }
+
+        return createSupersetDrafts(superset);
+      }
+    );
+
+    setDraftExercises([
+      ...normalDrafts,
+      ...supersetDrafts,
+    ]);
 
     if (!title.trim()) {
       setTitle(plan.name);
@@ -718,26 +812,18 @@ export default function DiaryPage() {
       return;
     }
 
-    const newDraftItems =
-      selectedExerciseIds
-        .map((exerciseId) => {
-          const exercise =
-            exerciseMap.get(exerciseId);
+    const newDraftItems = selectedExerciseIds
+      .map((exerciseId) => {
+        const exercise = exerciseMap.get(exerciseId);
 
-          if (!exercise) {
-            return null;
-          }
-
-          return createDraftFromExercise(
-            exercise
-          );
-        })
-        .filter(
-          (
-            item
-          ): item is DraftSessionExercise =>
-            Boolean(item)
-        );
+        return exercise
+          ? createDraftFromExercise(exercise)
+          : null;
+      })
+      .filter(
+        (item): item is DraftSessionExercise =>
+          item !== null
+      );
 
     setDraftExercises((current) => [
       ...current,
@@ -762,8 +848,7 @@ export default function DiaryPage() {
           currentExerciseIndex
         ) => {
           if (
-            currentExerciseIndex !==
-            exerciseIndex
+            currentExerciseIndex !== exerciseIndex
           ) {
             return exerciseItem;
           }
@@ -771,25 +856,18 @@ export default function DiaryPage() {
           return {
             ...exerciseItem,
 
-            setRows:
-              exerciseItem.setRows.map(
-                (
-                  setRow,
-                  currentSetIndex
-                ) => {
-                  if (
-                    currentSetIndex !==
-                    setIndex
-                  ) {
-                    return setRow;
-                  }
-
-                  return {
-                    ...setRow,
-                    [field]: value,
-                  };
+            setRows: exerciseItem.setRows.map(
+              (setRow, currentSetIndex) => {
+                if (currentSetIndex !== setIndex) {
+                  return setRow;
                 }
-              ),
+
+                return {
+                  ...setRow,
+                  [field]:value,
+                };
+              }
+            ),
           };
         }
       )
@@ -806,8 +884,7 @@ export default function DiaryPage() {
           exerciseItem,
           currentExerciseIndex
         ) =>
-          currentExerciseIndex ===
-          exerciseIndex
+          currentExerciseIndex === exerciseIndex
             ? {
                 ...exerciseItem,
                 ...updates,
@@ -826,9 +903,7 @@ export default function DiaryPage() {
     });
   }
 
-  function addSetRow(
-    exerciseIndex: number
-  ) {
+  function addSetRow(exerciseIndex: number) {
     setDraftExercises((current) =>
       current.map(
         (
@@ -836,8 +911,7 @@ export default function DiaryPage() {
           currentExerciseIndex
         ) => {
           if (
-            currentExerciseIndex !==
-            exerciseIndex
+            currentExerciseIndex !== exerciseIndex
           ) {
             return exerciseItem;
           }
@@ -881,10 +955,7 @@ export default function DiaryPage() {
         source.exerciseId
       );
 
-      if (
-        !exercise ||
-        exercise.type !== "boulder"
-      ) {
+      if (exercise?.type !== "boulder") {
         return current;
       }
 
@@ -892,12 +963,8 @@ export default function DiaryPage() {
         exerciseId: source.exerciseId,
         setRows: [],
 
-        boulderStyle:
-          source.boulderStyle,
-
-        boulderGrade:
-          source.boulderGrade,
-
+        boulderStyle: source.boulderStyle,
+        boulderGrade: source.boulderGrade,
         boulderSessions: "1",
         isFlash: false,
 
@@ -905,16 +972,9 @@ export default function DiaryPage() {
       };
 
       return [
-        ...current.slice(
-          0,
-          exerciseIndex + 1
-        ),
-
+        ...current.slice(0, exerciseIndex + 1),
         duplicate,
-
-        ...current.slice(
-          exerciseIndex + 1
-        ),
+        ...current.slice(exerciseIndex + 1),
       ];
     });
   }
@@ -930,8 +990,7 @@ export default function DiaryPage() {
           currentExerciseIndex
         ) => {
           if (
-            currentExerciseIndex !==
-            exerciseIndex
+            currentExerciseIndex !== exerciseIndex
           ) {
             return exerciseItem;
           }
@@ -973,6 +1032,25 @@ export default function DiaryPage() {
     );
   }
 
+  function removeSupersetInstance(
+    instanceId: string
+  ) {
+    const confirmed = window.confirm(
+      "Diesen vollständigen Supersatz aus der Session entfernen?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDraftExercises((current) =>
+      current.filter(
+        (item) =>
+          item.supersetInstanceId !== instanceId
+      )
+    );
+  }
+
   function startTimer() {
     setIsTimerRunning(true);
   }
@@ -989,20 +1067,15 @@ export default function DiaryPage() {
   function getLastStatsForExercise(
     exerciseId: number
   ) {
-    const currentEntryId = editingEntryId;
-
     const candidates = diaryExercises
       .filter((item) => {
-        if (
-          item.exerciseId !== exerciseId
-        ) {
+        if (item.exerciseId !== exerciseId) {
           return false;
         }
 
         if (
-          currentEntryId &&
-          item.diaryEntryId ===
-            currentEntryId
+          editingEntryId &&
+          item.diaryEntryId === editingEntryId
         ) {
           return false;
         }
@@ -1010,9 +1083,7 @@ export default function DiaryPage() {
         return true;
       })
       .sort((a, b) =>
-        b.createdAt.localeCompare(
-          a.createdAt
-        )
+        b.createdAt.localeCompare(a.createdAt)
       );
 
     return candidates[0] ?? null;
@@ -1033,10 +1104,7 @@ export default function DiaryPage() {
       );
 
       if (!exercise) {
-        alert(
-          "Eine Übung wurde nicht gefunden."
-        );
-
+        alert("Eine Übung wurde nicht gefunden.");
         return false;
       }
 
@@ -1046,9 +1114,7 @@ export default function DiaryPage() {
         );
 
         if (
-          !Number.isInteger(
-            parsedSessions
-          ) ||
+          !Number.isInteger(parsedSessions) ||
           parsedSessions < 1
         ) {
           alert(
@@ -1058,15 +1124,10 @@ export default function DiaryPage() {
           return false;
         }
 
-        /*
-         * Style und Grad sind optional.
-         */
         continue;
       }
 
-      if (
-        draftExercise.setRows.length === 0
-      ) {
+      if (draftExercise.setRows.length === 0) {
         alert(
           `Bitte mindestens einen Satz für "${exercise.name}" eintragen.`
         );
@@ -1164,9 +1225,7 @@ export default function DiaryPage() {
 
         boulderSessions:
           item.boulderSessions
-            ? Number(
-                item.boulderSessions
-              )
+            ? Number(item.boulderSessions)
             : 1,
 
         isFlash: item.isFlash,
@@ -1186,22 +1245,25 @@ export default function DiaryPage() {
       sets: savedRows.length,
 
       reps:
-        exercise?.type === "reps" &&
-        savedRows[0]?.reps !== undefined
-          ? savedRows[0].reps
+        exercise?.type === "reps"
+          ? savedRows[0]?.reps
           : undefined,
 
       timeSeconds:
-        exercise?.type === "time" &&
-        savedRows[0]?.timeSeconds !==
-          undefined
-          ? savedRows[0].timeSeconds
+        exercise?.type === "time"
+          ? savedRows[0]?.timeSeconds
           : undefined,
 
       weightKg:
         savedRows[0]?.weightKg ?? 0,
 
       setRows: savedRows,
+
+      supersetInstanceId:
+        item.supersetInstanceId,
+
+      supersetRound:
+        item.supersetRound,
 
       notes:
         item.notes.trim() || undefined,
@@ -1262,8 +1324,7 @@ export default function DiaryPage() {
           title:
             title.trim() || "Session",
           notes:
-            entryNotes.trim() ||
-            undefined,
+            entryNotes.trim() || undefined,
           createdAt: now,
           updatedAt: now,
         });
@@ -1281,13 +1342,10 @@ export default function DiaryPage() {
 
     resetSession();
     resetAllModals();
-
     await loadData();
   }
 
-  function editSession(
-    entry: DiaryEntry
-  ) {
+  function editSession(entry: DiaryEntry) {
     if (!entry.id) {
       return;
     }
@@ -1347,11 +1405,8 @@ export default function DiaryPage() {
       }
     );
 
-    setShowEntryActionMenu(false);
-
     resetSession();
     resetAllModals();
-
     await loadData();
   }
 
@@ -1368,12 +1423,74 @@ export default function DiaryPage() {
     );
   }
 
+  const renderedDraftItems = useMemo(() => {
+    const result: Array<
+      | {
+          type: "single";
+          item: DraftSessionExercise;
+          originalIndex: number;
+        }
+      | {
+          type: "superset";
+          instanceId: string;
+          name: string;
+          items: Array<{
+            item: DraftSessionExercise;
+            originalIndex: number;
+          }>;
+        }
+    > = [];
+
+    const handledInstances = new Set<string>();
+
+    draftExercises.forEach((item, index) => {
+      const instanceId =
+        item.supersetInstanceId;
+
+      if (!instanceId) {
+        result.push({
+          type: "single",
+          item,
+          originalIndex: index,
+        });
+
+        return;
+      }
+
+      if (handledInstances.has(instanceId)) {
+        return;
+      }
+
+      handledInstances.add(instanceId);
+
+      const groupItems = draftExercises
+        .map((candidate, candidateIndex) => ({
+          item: candidate,
+          originalIndex: candidateIndex,
+        }))
+        .filter(
+          (candidate) =>
+            candidate.item
+              .supersetInstanceId === instanceId
+        );
+
+      result.push({
+        type: "superset",
+        instanceId,
+        name:
+          item.supersetName ?? "Supersatz",
+        items: groupItems,
+      });
+    });
+
+    return result;
+  }, [draftExercises]);
+
   return (
     <section className="card">
       <div className="page-header">
         <div>
           <h2>Tagebuch</h2>
-
           <p>
             Sessions erfassen und nach Datum
             anzeigen.
@@ -1401,10 +1518,7 @@ export default function DiaryPage() {
             <p>
               Deine Daten liegen lokal auf
               diesem Gerät. Erstelle
-              regelmäßig ein Backup, damit
-              beim Browserdaten-Löschen oder
-              Gerätewechsel nichts verloren
-              geht.
+              regelmäßig ein Backup.
             </p>
           </div>
 
@@ -1424,11 +1538,7 @@ export default function DiaryPage() {
           <div className="modal-card">
             <div className="modal-header">
               <div>
-                <h3>
-                  {editingEntryId
-                    ? "Session bearbeiten"
-                    : "Neue Session"}
-                </h3>
+                <h3>Neue Session</h3>
 
                 <p>
                   Datum und Namen festlegen.
@@ -1452,20 +1562,16 @@ export default function DiaryPage() {
                 type="date"
                 value={date}
                 onChange={(event) =>
-                  setDate(
-                    event.target.value
-                  )
+                  setDate(event.target.value)
                 }
               />
 
               <input
                 value={title}
                 onChange={(event) =>
-                  setTitle(
-                    event.target.value
-                  )
+                  setTitle(event.target.value)
                 }
-                placeholder="Session-Name, z. B. Pull Training"
+                placeholder="Session-Name"
               />
 
               <textarea
@@ -1475,7 +1581,7 @@ export default function DiaryPage() {
                     event.target.value
                   )
                 }
-                placeholder="Notiz zur Session optional"
+                placeholder="Notiz optional"
                 rows={2}
               />
 
@@ -1491,7 +1597,16 @@ export default function DiaryPage() {
                   openExerciseSelection
                 }
               >
-                Übungen hinzufügen
+                Einzelübungen hinzufügen
+              </button>
+
+              <button
+                className="secondary-button"
+                onClick={
+                  openSupersetSelection
+                }
+              >
+                Supersatz hinzufügen
               </button>
             </div>
           </div>
@@ -1508,8 +1623,8 @@ export default function DiaryPage() {
                 </h3>
 
                 <p>
-                  Wähle einen Plan. Danach
-                  trägst du die Sätze ein.
+                  Einzelübungen und
+                  Supersätze werden geladen.
                 </p>
               </div>
 
@@ -1525,47 +1640,135 @@ export default function DiaryPage() {
             </div>
 
             <div className="list">
-              {trainingPlans.length ===
+              {activeTrainingPlans.length ===
                 0 && (
                 <p>
-                  Noch keine Trainingspläne
-                  vorhanden.
+                  Noch keine aktiven
+                  Trainingspläne vorhanden.
                 </p>
               )}
 
-              {trainingPlans.map((plan) => (
-                <div
-                  key={plan.id}
-                  className="list-item"
-                >
-                  <h3>{plan.name}</h3>
-
-                  {plan.description && (
-                    <p>
-                      {plan.description}
-                    </p>
-                  )}
-
-                  <p>
-                    Übungen:{" "}
-                    <strong>
-                      {getPlanExerciseNames(
-                        plan.id
-                      )}
-                    </strong>
-                  </p>
-
-                  <button
-                    onClick={() =>
-                      loadPlanIntoStats(
-                        plan
-                      )
-                    }
+              {activeTrainingPlans.map(
+                (plan) => (
+                  <div
+                    key={plan.id}
+                    className="list-item"
                   >
-                    Plan auswählen
-                  </button>
-                </div>
-              ))}
+                    <h3>{plan.name}</h3>
+
+                    {plan.description && (
+                      <p>
+                        {plan.description}
+                      </p>
+                    )}
+
+                    <p>
+                      Einzelübungen:{" "}
+                      <strong>
+                        {getPlanExerciseNames(
+                          plan.id
+                        )}
+                      </strong>
+                    </p>
+
+                    <p>
+                      Supersätze:{" "}
+                      <strong>
+                        {getPlanSupersetNames(
+                          plan.id
+                        )}
+                      </strong>
+                    </p>
+
+                    <button
+                      onClick={() =>
+                        loadPlanIntoStats(
+                          plan
+                        )
+                      }
+                    >
+                      Plan auswählen
+                    </button>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSupersetModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <div>
+                <h3>
+                  Supersatz hinzufügen
+                </h3>
+
+                <p>
+                  Wähle einen aktiven
+                  Supersatz aus.
+                </p>
+              </div>
+
+              <button
+                className="secondary-button small-button"
+                onClick={
+                  closeSupersetSelection
+                }
+              >
+                Zurück
+              </button>
+            </div>
+
+            <div className="list">
+              {activeSupersets.length ===
+                0 && (
+                <p>
+                  Noch keine aktiven
+                  Supersätze vorhanden.
+                </p>
+              )}
+
+              {activeSupersets.map(
+                (superset) => (
+                  <div
+                    key={superset.id}
+                    className="list-item"
+                  >
+                    <h3>
+                      {superset.name}
+                    </h3>
+
+                    <p>
+                      {superset.rounds}{" "}
+                      {superset.rounds === 1
+                        ? "Durchgang"
+                        : "Durchgänge"}
+                    </p>
+
+                    <p>
+                      Übungen:{" "}
+                      <strong>
+                        {getSupersetExerciseNames(
+                          superset.id
+                        )}
+                      </strong>
+                    </p>
+
+                    <button
+                      onClick={() =>
+                        loadSupersetIntoSession(
+                          superset
+                        )
+                      }
+                    >
+                      Supersatz auswählen
+                    </button>
+                  </div>
+                )
+              )}
             </div>
           </div>
         </div>
@@ -1581,9 +1784,8 @@ export default function DiaryPage() {
                 </h3>
 
                 <p>
-                  Wähle zuerst eine Kategorie
-                  und danach die passende
-                  Übung.
+                  Zuerst Kategorie, dann
+                  Übung auswählen.
                 </p>
               </div>
 
@@ -1599,7 +1801,7 @@ export default function DiaryPage() {
 
             <div className="form-block compact">
               <label className="field-label">
-                1. Kategorie
+                Kategorie
               </label>
 
               <select
@@ -1608,8 +1810,7 @@ export default function DiaryPage() {
                 }
                 onChange={(event) => {
                   setExerciseCategoryFilter(
-                    event.target
-                      .value as
+                    event.target.value as
                       | ExerciseCategory
                       | ""
                   );
@@ -1641,54 +1842,31 @@ export default function DiaryPage() {
               </select>
 
               {exerciseCategoryFilter && (
-                <>
-                  <label className="field-label">
-                    2. Körperbereich
-                  </label>
-
-                  <select
-                    value={
-                      exerciseBodyPartFilter
-                    }
-                    onChange={(event) =>
-                      setExerciseBodyPartFilter(
-                        event.target.value
-                      )
-                    }
-                  >
-                    {bodyPartOptions.map(
-                      (bodyPart) => (
-                        <option
-                          key={bodyPart}
-                          value={bodyPart}
-                        >
-                          {bodyPart}
-                        </option>
-                      )
-                    )}
-                  </select>
-                </>
+                <select
+                  value={
+                    exerciseBodyPartFilter
+                  }
+                  onChange={(event) =>
+                    setExerciseBodyPartFilter(
+                      event.target.value
+                    )
+                  }
+                >
+                  {bodyPartOptions.map(
+                    (bodyPart) => (
+                      <option
+                        key={bodyPart}
+                        value={bodyPart}
+                      >
+                        {bodyPart}
+                      </option>
+                    )
+                  )}
+                </select>
               )}
             </div>
 
-            {!exerciseCategoryFilter && (
-              <p className="hint">
-                Bitte zuerst Kraft,
-                Beweglichkeit oder Bouldern
-                auswählen.
-              </p>
-            )}
-
             <div className="list">
-              {exerciseCategoryFilter &&
-                filteredSelectableExercises.length ===
-                  0 && (
-                  <p>
-                    Keine passenden Übungen
-                    gefunden.
-                  </p>
-                )}
-
               {filteredSelectableExercises.map(
                 (exercise) => (
                   <div
@@ -1706,20 +1884,13 @@ export default function DiaryPage() {
                             exercise.category
                           )}{" "}
                           ·{" "}
-                          {exercise.bodyPart}{" "}
-                          ·{" "}
-                          {exercise.type ===
-                          "reps"
-                            ? "Wiederholungen"
-                            : exercise.type ===
-                              "time"
-                            ? "Zeit"
-                            : "Bouldern"}
+                          {exercise.bodyPart}
                         </p>
                       </div>
 
                       <input
                         type="checkbox"
+                        className="checkbox-input"
                         checked={
                           exercise.id !==
                             undefined &&
@@ -1732,7 +1903,6 @@ export default function DiaryPage() {
                             exercise.id
                           )
                         }
-                        className="checkbox-input"
                       />
                     </div>
                   </div>
@@ -1750,7 +1920,7 @@ export default function DiaryPage() {
                   0
                 }
               >
-                Weiter zu Sätzen
+                Weiter
               </button>
 
               <button
@@ -1774,17 +1944,17 @@ export default function DiaryPage() {
                 <h3>
                   {editingEntryId
                     ? "Session bearbeiten"
-                    : "Übungen eintragen"}
+                    : "Session erfassen"}
                 </h3>
 
                 <p>
-                  Boulder, Sätze und
-                  Trainingswerte erfassen.
+                  Einzelübungen und
+                  Supersätze bearbeiten.
                 </p>
               </div>
 
               <div className="plan-menu-wrapper">
-                {editingEntryId && (
+                {editingEntryId ? (
                   <>
                     <button
                       className="icon-button"
@@ -1794,7 +1964,6 @@ export default function DiaryPage() {
                             !current
                         )
                       }
-                      aria-label="Session Optionen öffnen"
                     >
                       ⋮
                     </button>
@@ -1812,9 +1981,7 @@ export default function DiaryPage() {
                       </div>
                     )}
                   </>
-                )}
-
-                {!editingEntryId && (
+                ) : (
                   <button
                     className="secondary-button small-button"
                     onClick={closeAll}
@@ -1867,26 +2034,18 @@ export default function DiaryPage() {
             </div>
 
             <div className="form-block">
-              <label className="field-label">
-                Datum
-              </label>
-
               <input
                 type="date"
                 value={date}
                 onChange={(event) =>
-                  setDate(
-                    event.target.value
-                  )
+                  setDate(event.target.value)
                 }
               />
 
               <input
                 value={title}
                 onChange={(event) =>
-                  setTitle(
-                    event.target.value
-                  )
+                  setTitle(event.target.value)
                 }
                 placeholder="Session-Name"
               />
@@ -1898,7 +2057,7 @@ export default function DiaryPage() {
                     event.target.value
                   )
                 }
-                placeholder="Notiz zur Session optional"
+                placeholder="Notiz optional"
                 rows={2}
               />
             </div>
@@ -1910,413 +2069,181 @@ export default function DiaryPage() {
                   openExerciseSelection
                 }
               >
-                Weitere Übungen hinzufügen
+                Einzelübung hinzufügen
+              </button>
+
+              <button
+                className="secondary-button"
+                onClick={
+                  openSupersetSelection
+                }
+              >
+                Supersatz hinzufügen
               </button>
             </div>
 
             <div className="list">
-              {draftExercises.map(
-                (
-                  draftExercise,
-                  exerciseIndex
-                ) => {
-                  const exercise =
-                    exerciseMap.get(
-                      draftExercise.exerciseId
+              {renderedDraftItems.map(
+                (renderItem, renderIndex) => {
+                  if (
+                    renderItem.type ===
+                    "superset"
+                  ) {
+                    const rounds = Array.from(
+                      new Set(
+                        renderItem.items.map(
+                          ({ item }) =>
+                            item.supersetRound ??
+                            1
+                        )
+                      )
+                    ).sort((a, b) => a - b);
+
+                    return (
+                      <div
+                        key={
+                          renderItem.instanceId
+                        }
+                        className="sub-card superset-session-card"
+                      >
+                        <div className="list-item-header">
+                          <div>
+                            <h3>
+                              Supersatz:{" "}
+                              {renderItem.name}
+                            </h3>
+
+                            <p>
+                              {rounds.length}{" "}
+                              Durchgänge
+                            </p>
+                          </div>
+
+                          <button
+                            className="danger-button small-button"
+                            onClick={() =>
+                              removeSupersetInstance(
+                                renderItem.instanceId
+                              )
+                            }
+                          >
+                            Entfernen
+                          </button>
+                        </div>
+
+                        {rounds.map(
+                          (round) => (
+                            <div
+                              key={round}
+                              className="superset-round"
+                            >
+                              <h3>
+                                Durchgang{" "}
+                                {round}
+                              </h3>
+
+                              {renderItem.items
+                                .filter(
+                                  ({ item }) =>
+                                    (item.supersetRound ??
+                                      1) ===
+                                    round
+                                )
+                                .map(
+                                  ({
+                                    item,
+                                    originalIndex,
+                                  }) => (
+                                    <SessionExerciseEditor
+                                      key={`${renderItem.instanceId}-${round}-${item.exerciseId}`}
+                                      draftExercise={
+                                        item
+                                      }
+                                      exerciseIndex={
+                                        originalIndex
+                                      }
+                                      exercise={exerciseMap.get(
+                                        item.exerciseId
+                                      )}
+                                      previousStats={getLastStatsForExercise(
+                                        item.exerciseId
+                                      )}
+                                      updateSetRow={
+                                        updateSetRow
+                                      }
+                                      updateDraftExercise={
+                                        updateDraftExercise
+                                      }
+                                      updateExerciseNotes={
+                                        updateExerciseNotes
+                                      }
+                                      addSetRow={
+                                        addSetRow
+                                      }
+                                      removeSetRow={
+                                        removeSetRow
+                                      }
+                                      removeDraftExercise={
+                                        removeDraftExercise
+                                      }
+                                      duplicateBoulder={
+                                        duplicateBoulder
+                                      }
+                                      compactSuperset
+                                    />
+                                  )
+                                )}
+                            </div>
+                          )
+                        )}
+                      </div>
                     );
-
-                  const previousStats =
-                    getLastStatsForExercise(
-                      draftExercise.exerciseId
-                    );
-
-                  const isTimeExercise =
-                    exercise?.type ===
-                    "time";
-
-                  const isBoulderExercise =
-                    exercise?.type ===
-                    "boulder";
+                  }
 
                   return (
-                    <div
-                      key={`${draftExercise.exerciseId}-${exerciseIndex}`}
-                      className="list-item"
-                    >
-                      <div className="list-item-header">
-                        <div>
-                          <h3>
-                            {exerciseIndex +
-                              1}
-                            .{" "}
-                            {exercise?.name ??
-                              "Unbekannte Übung"}
-                          </h3>
-
-                          <p>
-                            {exercise?.type ===
-                            "reps"
-                              ? "Wiederholungen"
-                              : exercise?.type ===
-                                "time"
-                              ? "Zeit"
-                              : "Bouldern"}
-                          </p>
-                        </div>
-
-                        <button
-                          className="danger-button small-button"
-                          onClick={() =>
-                            removeDraftExercise(
-                              exerciseIndex
-                            )
-                          }
-                        >
-                          Entfernen
-                        </button>
-                      </div>
-
-                      {previousStats && (
-                        <div className="last-stats-box">
-                          <strong>
-                            Letzte Session:
-                          </strong>
-
-                          {formatLastStats(
-                            previousStats,
-                            exercise
-                          )}
-                        </div>
+                    <SessionExerciseEditor
+                      key={`single-${renderIndex}-${renderItem.item.exerciseId}`}
+                      draftExercise={
+                        renderItem.item
+                      }
+                      exerciseIndex={
+                        renderItem.originalIndex
+                      }
+                      exercise={exerciseMap.get(
+                        renderItem.item
+                          .exerciseId
                       )}
-
-                      {isBoulderExercise && (
-                        <div className="form-block compact">
-                          <label className="field-label">
-                            Style optional
-                          </label>
-
-                          <select
-                            value={
-                              draftExercise.boulderStyle
-                            }
-                            onChange={(
-                              event
-                            ) =>
-                              updateDraftExercise(
-                                exerciseIndex,
-                                {
-                                  boulderStyle:
-                                    event
-                                      .target
-                                      .value as
-                                      | BoulderStyle
-                                      | "",
-                                }
-                              )
-                            }
-                          >
-                            <option value="">
-                              Kein Style ausgewählt
-                            </option>
-
-                            {boulderStyles.map(
-                              (style) => (
-                                <option
-                                  key={
-                                    style
-                                  }
-                                  value={
-                                    style
-                                  }
-                                >
-                                  {style}
-                                </option>
-                              )
-                            )}
-                          </select>
-
-                          <label className="field-label">
-                            Schwierigkeit optional
-                          </label>
-
-                          <select
-                            value={
-                              draftExercise.boulderGrade
-                            }
-                            onChange={(
-                              event
-                            ) =>
-                              updateDraftExercise(
-                                exerciseIndex,
-                                {
-                                  boulderGrade:
-                                    event
-                                      .target
-                                      .value
-                                      ? (Number(
-                                          event
-                                            .target
-                                            .value
-                                        ) as BoulderGrade)
-                                      : "",
-                                }
-                              )
-                            }
-                          >
-                            <option value="">
-                              Kein Grad ausgewählt
-                            </option>
-
-                            {boulderGrades.map(
-                              (grade) => (
-                                <option
-                                  key={
-                                    grade
-                                  }
-                                  value={
-                                    grade
-                                  }
-                                >
-                                  Grad{" "}
-                                  {grade}
-                                </option>
-                              )
-                            )}
-                          </select>
-
-                          <label className="field-label">
-                            Anzahl
-                            unterschiedlicher
-                            Trainingstage
-                          </label>
-
-                          <div className="input-with-unit">
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={
-                                draftExercise.boulderSessions
-                              }
-                              onChange={(
-                                event
-                              ) =>
-                                updateDraftExercise(
-                                  exerciseIndex,
-                                  {
-                                    boulderSessions:
-                                      event
-                                        .target
-                                        .value,
-                                  }
-                                )
-                              }
-                              placeholder="1"
-                            />
-
-                            <span>
-                              Trainingstage
-                            </span>
-                          </div>
-
-                          <label className="inline-toggle">
-                            <input
-                              type="checkbox"
-                              checked={
-                                draftExercise.isFlash
-                              }
-                              onChange={(
-                                event
-                              ) =>
-                                updateDraftExercise(
-                                  exerciseIndex,
-                                  {
-                                    isFlash:
-                                      event
-                                        .target
-                                        .checked,
-                                  }
-                                )
-                              }
-                            />
-
-                            Boulder geflasht
-                          </label>
-
-                          <button
-                            className="secondary-button"
-                            onClick={() =>
-                              duplicateBoulder(
-                                exerciseIndex
-                              )
-                            }
-                          >
-                            + Satz hinzufügen
-                          </button>
-                        </div>
+                      previousStats={getLastStatsForExercise(
+                        renderItem.item
+                          .exerciseId
                       )}
-
-                      {!isBoulderExercise && (
-                        <>
-                          <div className="set-table">
-                            {draftExercise.setRows.map(
-                              (
-                                setRow,
-                                setIndex
-                              ) => (
-                                <div
-                                  key={
-                                    setRow.id
-                                  }
-                                  className="set-row"
-                                >
-                                  <span className="set-number">
-                                    Satz{" "}
-                                    {setIndex +
-                                      1}
-                                  </span>
-
-                                  <div className="input-with-unit">
-                                    <input
-                                      type="number"
-                                      value={
-                                        setRow.weightKg
-                                      }
-                                      onChange={(
-                                        event
-                                      ) =>
-                                        updateSetRow(
-                                          exerciseIndex,
-                                          setIndex,
-                                          "weightKg",
-                                          event
-                                            .target
-                                            .value
-                                        )
-                                      }
-                                      placeholder="0"
-                                    />
-
-                                    <span>
-                                      kg
-                                    </span>
-                                  </div>
-
-                                  {exercise?.type ===
-                                    "reps" && (
-                                    <div className="input-with-unit">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={
-                                          setRow.reps
-                                        }
-                                        onChange={(
-                                          event
-                                        ) =>
-                                          updateSetRow(
-                                            exerciseIndex,
-                                            setIndex,
-                                            "reps",
-                                            event
-                                              .target
-                                              .value
-                                          )
-                                        }
-                                        placeholder="0"
-                                      />
-
-                                      <span>
-                                        Wdh.
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {isTimeExercise && (
-                                    <div className="input-with-unit">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={
-                                          setRow.timeSeconds
-                                        }
-                                        onChange={(
-                                          event
-                                        ) =>
-                                          updateSetRow(
-                                            exerciseIndex,
-                                            setIndex,
-                                            "timeSeconds",
-                                            event
-                                              .target
-                                              .value
-                                          )
-                                        }
-                                        placeholder="0"
-                                      />
-
-                                      <span>
-                                        sek
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  <button
-                                    className="danger-button small-button"
-                                    onClick={() =>
-                                      removeSetRow(
-                                        exerciseIndex,
-                                        setIndex
-                                      )
-                                    }
-                                  >
-                                    −
-                                  </button>
-                                </div>
-                              )
-                            )}
-                          </div>
-
-                          <button
-                            className="secondary-button"
-                            onClick={() =>
-                              addSetRow(
-                                exerciseIndex
-                              )
-                            }
-                          >
-                            + Satz hinzufügen
-                          </button>
-                        </>
-                      )}
-
-                      <textarea
-                        value={
-                          draftExercise.notes
-                        }
-                        onChange={(event) =>
-                          updateExerciseNotes(
-                            exerciseIndex,
-                            event.target.value
-                          )
-                        }
-                        placeholder={
-                          isBoulderExercise
-                            ? "Notiz zum Boulder optional"
-                            : "Notiz zur Übung optional"
-                        }
-                        rows={2}
-                      />
-                    </div>
+                      updateSetRow={
+                        updateSetRow
+                      }
+                      updateDraftExercise={
+                        updateDraftExercise
+                      }
+                      updateExerciseNotes={
+                        updateExerciseNotes
+                      }
+                      addSetRow={addSetRow}
+                      removeSetRow={
+                        removeSetRow
+                      }
+                      removeDraftExercise={
+                        removeDraftExercise
+                      }
+                      duplicateBoulder={
+                        duplicateBoulder
+                      }
+                    />
                   );
                 }
               )}
             </div>
 
             <div className="session-action-row">
-              <button
-                onClick={saveSession}
-              >
+              <button onClick={saveSession}>
                 {editingEntryId
                   ? "Session speichern"
                   : "Session anlegen"}
@@ -2324,20 +2251,9 @@ export default function DiaryPage() {
 
               <button
                 className="secondary-button"
-                onClick={() => {
-                  setShowStatsModal(false);
-
-                  if (editingEntryId) {
-                    resetSession();
-                    resetAllModals();
-                  } else {
-                    setShowSessionModal(
-                      true
-                    );
-                  }
-                }}
+                onClick={closeAll}
               >
-                Zurück
+                Abbrechen
               </button>
             </div>
           </div>
@@ -2369,6 +2285,27 @@ export default function DiaryPage() {
                 )?.type !== "boulder"
             );
 
+          const supersetInstanceCount =
+            new Set(
+              nonBoulderItems
+                .map(
+                  (item) =>
+                    item.supersetInstanceId
+                )
+                .filter(
+                  (
+                    value
+                  ): value is string =>
+                    Boolean(value)
+                )
+            ).size;
+
+          const individualItems =
+            nonBoulderItems.filter(
+              (item) =>
+                !item.supersetInstanceId
+            );
+
           return (
             <article
               key={entry.id}
@@ -2377,16 +2314,11 @@ export default function DiaryPage() {
                 editSession(entry)
               }
             >
-              <div className="list-item-header">
-                <div>
-                  <h3>
-                    {entry.title ||
-                      "Session"}
-                  </h3>
+              <h3>
+                {entry.title || "Session"}
+              </h3>
 
-                  <p>{entry.date}</p>
-                </div>
-              </div>
+              <p>{entry.date}</p>
 
               {entry.notes && (
                 <p>
@@ -2395,13 +2327,6 @@ export default function DiaryPage() {
               )}
 
               <div className="session-exercise-summary">
-                {items.length === 0 && (
-                  <p>
-                    Keine Übungen in dieser
-                    Session.
-                  </p>
-                )}
-
                 {boulderGroups.map(
                   (group) => (
                     <div
@@ -2414,25 +2339,28 @@ export default function DiaryPage() {
                   )
                 )}
 
-                {nonBoulderItems.map(
-                  (item) => {
-                    const exercise =
-                      exerciseMap.get(
-                        item.exerciseId
-                      );
+                {supersetInstanceCount >
+                  0 && (
+                  <div className="session-exercise-line">
+                    {supersetInstanceCount}×{" "}
+                    Supersatz
+                  </div>
+                )}
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="session-exercise-line"
-                      >
-                        {formatDiaryExerciseLine(
-                          item,
-                          exercise
-                        )}
-                      </div>
-                    );
-                  }
+                {individualItems.map(
+                  (item) => (
+                    <div
+                      key={item.id}
+                      className="session-exercise-line"
+                    >
+                      {formatDiaryExerciseLine(
+                        item,
+                        exerciseMap.get(
+                          item.exerciseId
+                        )
+                      )}
+                    </div>
+                  )
                 )}
               </div>
             </article>
@@ -2443,14 +2371,367 @@ export default function DiaryPage() {
   );
 }
 
+type SessionExerciseEditorProps = {
+  draftExercise: DraftSessionExercise;
+  exerciseIndex: number;
+  exercise?: Exercise;
+  previousStats: DiaryExercise | null;
+
+  updateSetRow: (
+    exerciseIndex: number,
+    setIndex: number,
+    field: keyof DraftSetRow,
+    value: string
+  ) => void;
+
+  updateDraftExercise: (
+    exerciseIndex: number,
+    updates: Partial<DraftSessionExercise>
+  ) => void;
+
+  updateExerciseNotes: (
+    exerciseIndex: number,
+    value: string
+  ) => void;
+
+  addSetRow: (
+    exerciseIndex: number
+  ) => void;
+
+  removeSetRow: (
+    exerciseIndex: number,
+    setIndex: number
+  ) => void;
+
+  removeDraftExercise: (
+    exerciseIndex: number
+  ) => void;
+
+  duplicateBoulder: (
+    exerciseIndex: number
+  ) => void;
+
+  compactSuperset?: boolean;
+};
+
+function SessionExerciseEditor({
+  draftExercise,
+  exerciseIndex,
+  exercise,
+  previousStats,
+  updateSetRow,
+  updateDraftExercise,
+  updateExerciseNotes,
+  addSetRow,
+  removeSetRow,
+  removeDraftExercise,
+  duplicateBoulder,
+  compactSuperset = false,
+}: SessionExerciseEditorProps) {
+  const isBoulderExercise =
+    exercise?.type === "boulder";
+
+  const wrapperClass = compactSuperset
+    ? "list-item superset-exercise-item"
+    : "list-item";
+
+  return (
+    <div className={wrapperClass}>
+      <div className="list-item-header">
+        <div>
+          <h3>
+            {exercise?.name ??
+              "Unbekannte Übung"}
+          </h3>
+
+          <p>
+            {exercise?.type === "reps"
+              ? "Wiederholungen"
+              : exercise?.type === "time"
+              ? "Zeit"
+              : "Bouldern"}
+          </p>
+        </div>
+
+        {!compactSuperset && (
+          <button
+            className="danger-button small-button"
+            onClick={() =>
+              removeDraftExercise(
+                exerciseIndex
+              )
+            }
+          >
+            Entfernen
+          </button>
+        )}
+      </div>
+
+      {previousStats && (
+        <div className="last-stats-box">
+          <strong>
+            Letzte Session:
+          </strong>
+
+          {formatLastStats(
+            previousStats,
+            exercise
+          )}
+        </div>
+      )}
+
+      {isBoulderExercise && (
+        <div className="form-block compact">
+          <select
+            value={
+              draftExercise.boulderStyle
+            }
+            onChange={(event) =>
+              updateDraftExercise(
+                exerciseIndex,
+                {
+                  boulderStyle:
+                    event.target.value as
+                      | BoulderStyle
+                      | "",
+                }
+              )
+            }
+          >
+            <option value="">
+              Kein Style ausgewählt
+            </option>
+
+            {boulderStyles.map(
+              (style) => (
+                <option
+                  key={style}
+                  value={style}
+                >
+                  {style}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={
+              draftExercise.boulderGrade
+            }
+            onChange={(event) =>
+              updateDraftExercise(
+                exerciseIndex,
+                {
+                  boulderGrade:
+                    event.target.value
+                      ? (Number(
+                          event.target.value
+                        ) as BoulderGrade)
+                      : "",
+                }
+              )
+            }
+          >
+            <option value="">
+              Kein Grad ausgewählt
+            </option>
+
+            {boulderGrades.map(
+              (grade) => (
+                <option
+                  key={grade}
+                  value={grade}
+                >
+                  Grad {grade}
+                </option>
+              )
+            )}
+          </select>
+
+          <div className="input-with-unit">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={
+                draftExercise.boulderSessions
+              }
+              onChange={(event) =>
+                updateDraftExercise(
+                  exerciseIndex,
+                  {
+                    boulderSessions:
+                      event.target.value,
+                  }
+                )
+              }
+            />
+
+            <span>Trainingstage</span>
+          </div>
+
+          <label className="inline-toggle">
+            <input
+              type="checkbox"
+              checked={
+                draftExercise.isFlash
+              }
+              onChange={(event) =>
+                updateDraftExercise(
+                  exerciseIndex,
+                  {
+                    isFlash:
+                      event.target.checked,
+                  }
+                )
+              }
+            />
+
+            Boulder geflasht
+          </label>
+
+          <button
+            className="secondary-button"
+            onClick={() =>
+              duplicateBoulder(
+                exerciseIndex
+              )
+            }
+          >
+            + Satz hinzufügen
+          </button>
+        </div>
+      )}
+
+      {!isBoulderExercise && (
+        <>
+          <div className="set-table">
+            {draftExercise.setRows.map(
+              (setRow, setIndex) => (
+                <div
+                  key={setRow.id}
+                  className="set-row"
+                >
+                  <span className="set-number">
+                    Satz {setIndex + 1}
+                  </span>
+
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
+                      value={
+                        setRow.weightKg
+                      }
+                      onChange={(event) =>
+                        updateSetRow(
+                          exerciseIndex,
+                          setIndex,
+                          "weightKg",
+                          event.target.value
+                        )
+                      }
+                    />
+
+                    <span>kg</span>
+                  </div>
+
+                  {exercise?.type ===
+                    "reps" && (
+                    <div className="input-with-unit">
+                      <input
+                        type="number"
+                        min="0"
+                        value={setRow.reps}
+                        onChange={(event) =>
+                          updateSetRow(
+                            exerciseIndex,
+                            setIndex,
+                            "reps",
+                            event.target
+                              .value
+                          )
+                        }
+                      />
+
+                      <span>Wdh.</span>
+                    </div>
+                  )}
+
+                  {exercise?.type ===
+                    "time" && (
+                    <div className="input-with-unit">
+                      <input
+                        type="number"
+                        min="0"
+                        value={
+                          setRow.timeSeconds
+                        }
+                        onChange={(event) =>
+                          updateSetRow(
+                            exerciseIndex,
+                            setIndex,
+                            "timeSeconds",
+                            event.target
+                              .value
+                          )
+                        }
+                      />
+
+                      <span>sek</span>
+                    </div>
+                  )}
+
+                  {!compactSuperset && (
+                    <button
+                      className="danger-button small-button"
+                      onClick={() =>
+                        removeSetRow(
+                          exerciseIndex,
+                          setIndex
+                        )
+                      }
+                    >
+                      −
+                    </button>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+
+          {!compactSuperset && (
+            <button
+              className="secondary-button"
+              onClick={() =>
+                addSetRow(exerciseIndex)
+              }
+            >
+              + Satz hinzufügen
+            </button>
+          )}
+        </>
+      )}
+
+      <textarea
+        value={draftExercise.notes}
+        onChange={(event) =>
+          updateExerciseNotes(
+            exerciseIndex,
+            event.target.value
+          )
+        }
+        placeholder="Notiz optional"
+        rows={2}
+      />
+    </div>
+  );
+}
+
 function groupBouldersByGrade(
   items: DiaryExercise[],
   exerciseMap: Map<number, Exercise>
 ) {
-  const grouped = new Map<
-    string,
-    number
-  >();
+  const grouped = new Map<string, number>();
 
   items.forEach((item) => {
     const exercise = exerciseMap.get(
@@ -2471,30 +2752,12 @@ function groupBouldersByGrade(
     );
   });
 
-  return Array.from(grouped.entries())
-    .sort(([labelA], [labelB]) => {
-      if (labelA === "ohne Grad") {
-        return 1;
-      }
-
-      if (labelB === "ohne Grad") {
-        return -1;
-      }
-
-      const gradeA = Number(
-        labelA.replace("Grad ", "")
-      );
-
-      const gradeB = Number(
-        labelB.replace("Grad ", "")
-      );
-
-      return gradeB - gradeA;
-    })
-    .map(([label, count]) => ({
+  return Array.from(grouped.entries()).map(
+    ([label, count]) => ({
       label,
       count,
-    }));
+    })
+  );
 }
 
 function formatDiaryExerciseLine(
@@ -2506,15 +2769,9 @@ function formatDiaryExerciseLine(
   }
 
   if (exercise.type === "boulder") {
-    const gradeText = item.boulderGrade
-      ? `Grad ${item.boulderGrade}`
-      : "ohne Grad";
-
-    const flashText = item.isFlash
-      ? " · Flash"
-      : "";
-
-    return `Boulder · ${gradeText}${flashText}`;
+    return item.boulderGrade
+      ? `Boulder · Grad ${item.boulderGrade}`
+      : "Boulder · ohne Grad";
   }
 
   return exercise.name;
@@ -2525,14 +2782,7 @@ function formatLastStats(
   exercise?: Exercise
 ) {
   if (!exercise) {
-    return (
-      <div className="last-set-list">
-        <div className="last-set-row">
-          <span>Letzte Session</span>
-          <span>Keine Übungsdaten</span>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   if (exercise.type === "boulder") {
@@ -2559,65 +2809,30 @@ function formatLastStats(
     );
   }
 
-  if (
-    item.setRows &&
-    item.setRows.length > 0
-  ) {
-    return (
-      <div className="last-set-list">
-        {item.setRows.map(
-          (setRow, index) => (
-            <div
-              key={
-                setRow.id ||
-                `${item.id}-${index}`
-              }
-              className="last-set-row"
-            >
-              <span>
-                Satz {index + 1}
-              </span>
-
-              <span>
-                {exercise.type === "reps"
-                  ? `${
-                      setRow.weightKg ?? 0
-                    } kg · ${
-                      setRow.reps ?? "-"
-                    } Wdh.`
-                  : `${
-                      setRow.weightKg ?? 0
-                    } kg · ${
-                      setRow.timeSeconds ??
-                      "-"
-                    } sek`}
-              </span>
-            </div>
-          )
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="last-set-list">
-      <div className="last-set-row">
-        <span>Letzte Session</span>
+      {(item.setRows ?? []).map(
+        (row, index) => (
+          <div
+            key={row.id}
+            className="last-set-row"
+          >
+            <span>
+              Satz {index + 1}
+            </span>
 
-        <span>
-          {exercise.type === "reps"
-            ? `${item.sets ?? "-"} Sätze · ${
-                item.reps ?? "-"
-              } Wdh. · ${
-                item.weightKg ?? 0
-              } kg`
-            : `${item.sets ?? "-"} Sätze · ${
-                item.timeSeconds ?? "-"
-              } sek · ${
-                item.weightKg ?? 0
-              } kg`}
-        </span>
-      </div>
+            <span>
+              {exercise.type === "reps"
+                ? `${row.weightKg ?? 0} kg · ${
+                    row.reps ?? "-"
+                  } Wdh.`
+                : `${row.weightKg ?? 0} kg · ${
+                    row.timeSeconds ?? "-"
+                  } sek`}
+            </span>
+          </div>
+        )
+      )}
     </div>
   );
 }
