@@ -11,8 +11,41 @@ import type {
 } from "../../db/types";
 import { exportBackupJson, importBackupJson } from "../../utils/backup";
 
+import {
+  aggregateAverage,
+  aggregateLast,
+  aggregateSum,
+  getAggregationRange,
+  type AggregationMode,
+} from "./statisticsUtils";
+
+import {
+  createAverageGradeTrend,
+  createCountTrend,
+  createFlashRateTrend,
+  createGradeCountTrends,
+  createGradeFlashRateTrends,
+  createGradeSessionsTrends,
+  createStyleAverageGradeTrends,
+  createStyleGradeCountTrends,
+  createStyleGradeFlashRateTrends,
+  createStyleGradeSessionsTrends,
+  filterCurrentTrendPeriod,
+  filterPreviousTrendPeriod,
+  getTrendPeriod,
+  type FlashRateTrendValue,
+  type SessionsTrendValue,
+  type TrendRangeDays,
+  type TrendValue,
+} from "./boulderTrendUtils";
+
 type PeriodMode = "all" | "year" | "month";
 type StatisticsTab = "training" | "bouldern" | "body";
+type BoulderStatisticsTab =
+  | "overview"
+  | "timeline"
+  | "styles"
+  | "trends";
 
 type ChartItem = {
   label: string;
@@ -53,6 +86,7 @@ const boulderStyles: BoulderStyle[] = [
   "Dynamisch",
   "Leiste",
   "Parkur Style",
+  "Traverse",
 ];
 
 const bodyParts: BodyPart[] = [
@@ -107,10 +141,6 @@ function getYearFromDate(date: string) {
 
 function getMonthFromDate(date: string) {
   return Number(date.slice(5, 7));
-}
-
-function getDayFromDate(date: string) {
-  return Number(date.slice(8, 10));
 }
 
 function formatSecondsToMinutes(seconds: number) {
@@ -184,11 +214,44 @@ function downloadCsv(filename: string, rows: Array<Array<unknown>>) {
 
 export default function StatisticsPage() {
   const [tab, setTab] = useState<StatisticsTab>("bouldern");
+  const [
+    boulderStatisticsTab,
+    setBoulderStatisticsTab,
+  ] = useState<BoulderStatisticsTab>(
+    "overview"
+  );
+  const [
+    selectedBoulderGrades,
+    setSelectedBoulderGrades,
+  ] = useState<BoulderGrade[]>([
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+  ]);
+  const [
+    selectedTimelineStyle,
+    setSelectedTimelineStyle,
+  ] = useState<BoulderStyle | "all">("all");
   const [dataMenuOpen, setDataMenuOpen] = useState(false);
-
   const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
   const [selectedYear, setSelectedYear] = useState(todayYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+
+  const [
+    aggregationMode,
+    setAggregationMode,
+  ] = useState<AggregationMode>("month");
+
+  const [
+    trendRangeDays,
+    setTrendRangeDays,
+  ] = useState<TrendRangeDays>(30);
 
   const [selectedTrainingBodyPart, setSelectedTrainingBodyPart] =
     useState<BodyPart | "">("");
@@ -234,6 +297,34 @@ export default function StatisticsPage() {
         .map((entry) => [entry.id!, entry])
     );
   }, [diaryEntries]);
+
+  const allDatedBoulderItems = useMemo(() => {
+    return diaryExercises
+      .filter((item) => {
+        const exercise = exerciseMap.get(
+          item.exerciseId
+        );
+
+        return exercise?.type === "boulder";
+      })
+      .map((item) => {
+        const entry = entryMap.get(
+          item.diaryEntryId
+        );
+
+        return {
+          item,
+
+          date:
+            entry?.date ??
+            item.createdAt.slice(0, 10),
+        };
+      });
+  }, [
+    diaryExercises,
+    exerciseMap,
+    entryMap,
+  ]);
 
   async function handleBackupExport() {
     try {
@@ -286,7 +377,7 @@ export default function StatisticsPage() {
         "Zeit sek",
         "Boulder Style",
         "Boulder Grad",
-        "Boulder Versuche",
+        "Boulder Sessions",
         "Körpergewicht kg",
         "KFA Final %",
         "BMI",
@@ -317,7 +408,7 @@ export default function StatisticsPage() {
           "",
           item.boulderStyle ?? "",
           item.boulderGrade ?? "",
-          item.boulderAttempts ?? "",
+          item.boulderSessions ?? "",
           "",
           "",
           "",
@@ -500,6 +591,16 @@ export default function StatisticsPage() {
     return Array.from(grades).sort((a, b) => a - b);
   }, [boulderItems]);
 
+  const visibleBoulderGrades = useMemo(() => {
+    return boulderGradesWithData.filter(
+      (grade) =>
+        selectedBoulderGrades.includes(grade)
+    );
+  }, [
+    boulderGradesWithData,
+    selectedBoulderGrades,
+  ]);
+
   function getBoulderCountByGrade(grade: BoulderGrade) {
     return boulderItems.filter((item) => item.boulderGrade === grade).length;
   }
@@ -511,53 +612,6 @@ export default function StatisticsPage() {
     return boulderItems.filter(
       (item) => item.boulderStyle === style && item.boulderGrade === grade
     ).length;
-  }
-
-  function getAverageAttemptsByGrade(grade: BoulderGrade) {
-    const items = boulderItems.filter(
-      (item) =>
-        item.boulderGrade === grade && item.boulderAttempts !== undefined
-    );
-
-    if (items.length === 0) return null;
-
-    const total = items.reduce(
-      (sum, item) => sum + (item.boulderAttempts ?? 0),
-      0
-    );
-
-    return roundOne(total / items.length);
-  }
-
-  function getAverageAttemptsByStyleAndGrade(
-    style: BoulderStyle,
-    grade: BoulderGrade
-  ) {
-    const items = boulderItems.filter(
-      (item) =>
-        item.boulderStyle === style &&
-        item.boulderGrade === grade &&
-        item.boulderAttempts !== undefined
-    );
-
-    if (items.length === 0) return null;
-
-    const total = items.reduce(
-      (sum, item) => sum + (item.boulderAttempts ?? 0),
-      0
-    );
-
-    return roundOne(total / items.length);
-  }
-
-  function getBouldersPerSessionByGrade(grade: BoulderGrade) {
-    if (boulderSessionCount === 0) return null;
-
-    const count = getBoulderCountByGrade(grade);
-
-    if (count === 0) return null;
-
-    return roundOne(count / boulderSessionCount);
   }
 
   function getTrainingItemTotals(item: DiaryExercise) {
@@ -680,59 +734,34 @@ export default function StatisticsPage() {
     );
   }, [trainingExerciseStats]);
 
+
   const trainingSessionsChartData = useMemo(() => {
     const strengthEntryIds = new Set(
-      strengthItems.map((item) => item.diaryEntryId)
+      strengthItems.map(
+        (item) => item.diaryEntryId
+      )
     );
 
     const strengthEntries = filteredEntries.filter(
-      (entry) => entry.id !== undefined && strengthEntryIds.has(entry.id)
+      (entry) =>
+        entry.id !== undefined &&
+        strengthEntryIds.has(entry.id)
     );
 
-    if (periodMode === "month") {
-      const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-
-      return Array.from({ length: daysInMonth }).map((_, index) => {
-        const day = index + 1;
-        const count = strengthEntries.filter(
-          (entry) => getDayFromDate(entry.date) === day
-        ).length;
-
-        return {
-          label: day.toString(),
-          value: count,
-        };
-      });
-    }
-
-    if (periodMode === "year") {
-      return monthOptions.map((month) => {
-        const count = strengthEntries.filter(
-          (entry) => getMonthFromDate(entry.date) === month.value
-        ).length;
-
-        return {
-          label: month.label.slice(0, 3),
-          value: count,
-        };
-      });
-    }
-
-    const years = Array.from(
-      new Set(strengthEntries.map((entry) => getYearFromDate(entry.date)))
-    ).sort((a, b) => a - b);
-
-    return years.map((year) => {
-      const count = strengthEntries.filter(
-        (entry) => getYearFromDate(entry.date) === year
-      ).length;
-
-      return {
-        label: year.toString(),
-        value: count,
-      };
-    });
-  }, [strengthItems, filteredEntries, periodMode, selectedYear, selectedMonth]);
+    return aggregateSum(
+      strengthEntries,
+      (entry) => entry.date,
+      () => 1,
+      aggregationMode
+    ).map((item) => ({
+      label: item.label,
+      value: item.value,
+    }));
+  }, [
+    strengthItems,
+    filteredEntries,
+    aggregationMode,
+  ]);
 
   const availableTrainingExercisesForBodyPart = useMemo(() => {
     if (!selectedTrainingBodyPart) return [];
@@ -886,48 +915,564 @@ export default function StatisticsPage() {
     }));
   }, [boulderGradesWithData, boulderItems]);
 
-  const boulderGradeTimelineData = useMemo<MultiLineChartPoint[]>(() => {
-    const dates = Array.from(
-      new Set(
-        boulderItems.map((item) => {
-          const entry = entryMap.get(item.diaryEntryId);
-          return entry?.date ?? item.createdAt.slice(0, 10);
-        })
+  const boulderGradeTimelineData = useMemo<
+    MultiLineChartPoint[]
+  >(() => {
+    const grouped = new Map<
+      string,
+      {
+        label: string;
+        startDate: string;
+        values: Record<string, number>;
+      }
+    >();
+
+    boulderItems.forEach((item) => {
+      const grade = item.boulderGrade;
+
+      if (
+        grade === undefined ||
+        !visibleBoulderGrades.includes(grade)
+      ) {
+        return;
+      }
+
+      if (
+        selectedTimelineStyle !== "all" &&
+        item.boulderStyle !== selectedTimelineStyle
+      ) {
+        return;
+      }
+
+      const entry = entryMap.get(
+        item.diaryEntryId
+      );
+
+      const date =
+        entry?.date ??
+        item.createdAt.slice(0, 10);
+
+      const range = getAggregationRange(
+        date,
+        aggregationMode
+      );
+
+      let current = grouped.get(range.key);
+
+      if (!current) {
+        const initialValues: Record<
+          string,
+          number
+        > = {};
+
+        visibleBoulderGrades.forEach(
+          (visibleGrade) => {
+            initialValues[
+              `G${visibleGrade}`
+            ] = 0;
+          }
+        );
+
+        current = {
+          label: range.label,
+          startDate: range.startDate,
+          values: initialValues,
+        };
+
+        grouped.set(range.key, current);
+      }
+
+      const seriesName = `G${grade}`;
+
+      current.values[seriesName] =
+        (current.values[seriesName] ?? 0) + 1;
+    });
+
+    return Array.from(grouped.values())
+      .sort((a, b) =>
+        a.startDate.localeCompare(
+          b.startDate
+        )
       )
-    ).sort((a, b) => a.localeCompare(b));
+      .map((item) => ({
+        label: item.label,
+        values: item.values,
+      }));
+  }, [
+    boulderItems,
+    entryMap,
+    aggregationMode,
+    visibleBoulderGrades,
+    selectedTimelineStyle,
+  ]);
 
-    return dates.map((date) => {
-      const values: Record<string, number> = {};
+  const sessionsByGradeTimelineData = useMemo<
+    MultiLineChartPoint[]
+  >(() => {
+    const grouped = new Map<
+      string,
+      {
+        label: string;
+        startDate: string;
+        values: Record<
+          string,
+          {
+            sum: number;
+            count: number;
+          }
+        >;
+      }
+    >();
 
-      boulderGradesWithData.forEach((grade) => {
-        values[`G${grade}`] = boulderItems.filter((item) => {
-          const entry = entryMap.get(item.diaryEntryId);
-          const itemDate = entry?.date ?? item.createdAt.slice(0, 10);
+    boulderItems.forEach((item) => {
+      const grade = item.boulderGrade;
 
-          return itemDate === date && item.boulderGrade === grade;
-        }).length;
-      });
+      if (
+        grade === undefined ||
+        !visibleBoulderGrades.includes(grade) ||
+        item.boulderSessions === undefined
+      ) {
+        return;
+      }
 
-      return {
-        label: date,
-        values,
+      if (
+        selectedTimelineStyle !== "all" &&
+        item.boulderStyle !==
+          selectedTimelineStyle
+      ) {
+        return;
+      }
+
+      const sessions = Number(
+        item.boulderSessions
+      );
+
+      if (
+        !Number.isFinite(sessions) ||
+        sessions < 1
+      ) {
+        return;
+      }
+
+      const entry = entryMap.get(
+        item.diaryEntryId
+      );
+
+      const date =
+        entry?.date ??
+        item.createdAt.slice(0, 10);
+
+      const range = getAggregationRange(
+        date,
+        aggregationMode
+      );
+
+      let period = grouped.get(range.key);
+
+      if (!period) {
+        period = {
+          label: range.label,
+          startDate: range.startDate,
+          values: {},
+        };
+
+        grouped.set(range.key, period);
+      }
+
+      const seriesName = `G${grade}`;
+
+      const current = period.values[
+        seriesName
+      ] ?? {
+        sum: 0,
+        count: 0,
+      };
+
+      period.values[seriesName] = {
+        sum: current.sum + sessions,
+        count: current.count + 1,
       };
     });
-  }, [boulderItems, boulderGradesWithData, entryMap]);
+
+    return Array.from(grouped.values())
+      .sort((a, b) =>
+        a.startDate.localeCompare(
+          b.startDate
+        )
+      )
+      .map((period) => {
+        const values: Record<
+          string,
+          number
+        > = {};
+
+        visibleBoulderGrades.forEach(
+          (grade) => {
+            const seriesName = `G${grade}`;
+
+            const data =
+              period.values[seriesName];
+
+            if (data && data.count > 0) {
+              values[seriesName] = roundOne(
+                data.sum / data.count
+              );
+            }
+          }
+        );
+
+        return {
+          label: period.label,
+          values,
+        };
+      });
+  }, [
+    boulderItems,
+    entryMap,
+    aggregationMode,
+    visibleBoulderGrades,
+    selectedTimelineStyle,
+  ]);
+
+  const flashRateByGradeTimelineData = useMemo<
+    MultiLineChartPoint[]
+  >(() => {
+    const grouped = new Map<
+      string,
+      {
+        label: string;
+        startDate: string;
+        values: Record<
+          string,
+          {
+            flashes: number;
+            count: number;
+          }
+        >;
+      }
+    >();
+
+    boulderItems.forEach((item) => {
+      const grade = item.boulderGrade;
+
+      if (
+        grade === undefined ||
+        !visibleBoulderGrades.includes(grade) ||
+        item.isFlash === undefined
+      ) {
+        return;
+      }
+
+      if (
+        selectedTimelineStyle !== "all" &&
+        item.boulderStyle !==
+          selectedTimelineStyle
+      ) {
+        return;
+      }
+
+      const entry = entryMap.get(
+        item.diaryEntryId
+      );
+
+      const date =
+        entry?.date ??
+        item.createdAt.slice(0, 10);
+
+      const range = getAggregationRange(
+        date,
+        aggregationMode
+      );
+
+      let period = grouped.get(range.key);
+
+      if (!period) {
+        period = {
+          label: range.label,
+          startDate: range.startDate,
+          values: {},
+        };
+
+        grouped.set(range.key, period);
+      }
+
+      const seriesName = `G${grade}`;
+
+      const current = period.values[
+        seriesName
+      ] ?? {
+        flashes: 0,
+        count: 0,
+      };
+
+      period.values[seriesName] = {
+        flashes:
+          current.flashes +
+          (item.isFlash ? 1 : 0),
+
+        count: current.count + 1,
+      };
+    });
+
+    return Array.from(grouped.values())
+      .sort((a, b) =>
+        a.startDate.localeCompare(
+          b.startDate
+        )
+      )
+      .map((period) => {
+        const values: Record<
+          string,
+          number
+        > = {};
+
+        visibleBoulderGrades.forEach(
+          (grade) => {
+            const seriesName = `G${grade}`;
+
+            const data =
+              period.values[seriesName];
+
+            if (data && data.count > 0) {
+              values[seriesName] = roundOne(
+                (data.flashes /
+                  data.count) *
+                  100
+              );
+            }
+          }
+        );
+
+        return {
+          label: period.label,
+          values,
+        };
+      });
+  }, [
+    boulderItems,
+    entryMap,
+    aggregationMode,
+    visibleBoulderGrades,
+    selectedTimelineStyle,
+  ]);
+
+  const averageGradeByStyle = useMemo(() => {
+    return boulderStyles
+      .map((style) => {
+        const grades = boulderItems
+          .filter(
+            (item) =>
+              item.boulderStyle === style &&
+              item.boulderGrade !== undefined
+          )
+          .map(
+            (item) =>
+              item.boulderGrade as BoulderGrade
+          );
+
+        if (grades.length === 0) {
+          return null;
+        }
+
+        const average = roundOne(
+          grades.reduce(
+            (sum, grade) => sum + grade,
+            0
+          ) / grades.length
+        );
+
+        return {
+          style,
+          average,
+          count: grades.length,
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          style: BoulderStyle;
+          average: number;
+          count: number;
+        } => item !== null
+      )
+      .sort(
+        (a, b) => b.average - a.average
+      );
+  }, [boulderItems]);
+
+  const sessionsByGrade = useMemo(() => {
+    return boulderGradesWithData
+      .map((grade) => {
+        const items = boulderItems.filter(
+          (item) =>
+            item.boulderGrade === grade &&
+            item.boulderSessions !==
+              undefined &&
+            Number.isFinite(
+              Number(item.boulderSessions)
+            )
+        );
+
+        if (items.length === 0) {
+          return null;
+        }
+
+        const averageSessions = roundOne(
+          items.reduce(
+            (sum, item) =>
+              sum +
+              Number(
+                item.boulderSessions ?? 0
+              ),
+            0
+          ) / items.length
+        );
+
+        return {
+          grade,
+          averageSessions,
+          count: items.length,
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          grade: BoulderGrade;
+          averageSessions: number;
+          count: number;
+        } => item !== null
+      );
+  }, [
+    boulderItems,
+    boulderGradesWithData,
+  ]);
+
+  function getAverageSessionsByStyleAndGrade(
+    style: BoulderStyle,
+    grade: BoulderGrade
+  ) {
+    const items = boulderItems.filter(
+      (item) =>
+        item.boulderStyle === style &&
+        item.boulderGrade === grade &&
+        item.boulderSessions !== undefined &&
+        Number.isFinite(
+          Number(item.boulderSessions)
+        )
+    );
+
+    if (items.length === 0) {
+      return null;
+    }
+
+    return roundOne(
+      items.reduce(
+        (sum, item) =>
+          sum +
+          Number(item.boulderSessions ?? 0),
+        0
+      ) / items.length
+    );
+  }
+
+  const flashRateByGrade = useMemo(() => {
+    return boulderGradesWithData
+      .map((grade) => {
+        const items = boulderItems.filter(
+          (item) =>
+            item.boulderGrade === grade &&
+            item.isFlash !== undefined
+        );
+
+        if (items.length === 0) {
+          return null;
+        }
+
+        const flashes = items.filter(
+          (item) => item.isFlash === true
+        ).length;
+
+        return {
+          grade,
+          flashRate: roundOne(
+            (flashes / items.length) * 100
+          ),
+          flashes,
+          count: items.length,
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          grade: BoulderGrade;
+          flashRate: number;
+          flashes: number;
+          count: number;
+        } => item !== null
+      );
+  }, [boulderItems, boulderGradesWithData]);
+
+  function getFlashRateByStyleAndGrade(
+    style: BoulderStyle,
+    grade: BoulderGrade
+  ) {
+    const items = boulderItems.filter(
+      (item) =>
+        item.boulderStyle === style &&
+        item.boulderGrade === grade &&
+        item.isFlash !== undefined
+    );
+
+    if (items.length === 0) {
+      return null;
+    }
+
+    const flashes = items.filter(
+      (item) => item.isFlash === true
+    ).length;
+
+    return {
+      rate: roundOne(
+        (flashes / items.length) * 100
+      ),
+      flashes,
+      count: items.length,
+    };
+  }
 
   const bodyWeightChartData = useMemo(() => {
-    return filteredBodyMeasurements.map((item) => ({
-      label: item.date,
-      value: Number(item.weightKg),
+    return aggregateLast(
+      filteredBodyMeasurements,
+      (item) => item.date,
+      (item) => Number(item.weightKg),
+      aggregationMode
+    ).map((item) => ({
+      label: item.label,
+      value: item.value,
     }));
-  }, [filteredBodyMeasurements]);
+  }, [
+    filteredBodyMeasurements,
+    aggregationMode,
+  ]);
 
   const bodyFatChartData = useMemo(() => {
-    return filteredBodyMeasurements.map((item) => ({
-      label: item.date,
-      value: Number(item.bodyFatPercent),
+    return aggregateLast(
+      filteredBodyMeasurements,
+      (item) => item.date,
+      (item) =>
+        Number(item.bodyFatPercent),
+      aggregationMode
+    ).map((item) => ({
+      label: item.label,
+      value: item.value,
     }));
-  }, [filteredBodyMeasurements]);
+  }, [
+    filteredBodyMeasurements,
+    aggregationMode,
+  ]);
 
   const heaviestBoulderGrade = useMemo(() => {
     if (boulderGradesWithData.length === 0) return null;
@@ -947,8 +1492,399 @@ export default function StatisticsPage() {
     return roundOne(total / grades.length);
   }, [boulderItems]);
 
+  const boulderEntryDates = useMemo(() => {
+    return boulderItems.map((item) => {
+      const entry = entryMap.get(
+        item.diaryEntryId
+      );
+
+      return {
+        item,
+        date:
+          entry?.date ??
+          item.createdAt.slice(0, 10),
+      };
+    });
+  }, [boulderItems, entryMap]);
+
+  const bouldersLast30Days = useMemo(() => {
+    const today = new Date();
+
+    const startDate = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() - 29
+    );
+
+    const startIso = startDate
+      .toISOString()
+      .slice(0, 10);
+
+    const endIso = today
+      .toISOString()
+      .slice(0, 10);
+
+    return boulderEntryDates.filter(
+      ({ date }) =>
+        date >= startIso &&
+        date <= endIso
+    ).length;
+  }, [boulderEntryDates]);
+
+  const averageGradeLast30Days =
+    useMemo(() => {
+      const today = new Date();
+
+      const startDate = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - 29
+      );
+
+      const startIso = startDate
+        .toISOString()
+        .slice(0, 10);
+
+      const endIso = today
+        .toISOString()
+        .slice(0, 10);
+
+      const grades = boulderEntryDates
+        .filter(
+          ({ date }) =>
+            date >= startIso &&
+            date <= endIso
+        )
+        .map(({ item }) =>
+          item.boulderGrade
+        )
+        .filter(
+          (
+            grade
+          ): grade is BoulderGrade =>
+            grade !== undefined
+        );
+
+      if (grades.length === 0) {
+        return null;
+      }
+
+      return roundOne(
+        grades.reduce(
+          (sum, grade) => sum + grade,
+          0
+        ) / grades.length
+      );
+    }, [boulderEntryDates]);
+
+  const hardestFlashGrade = useMemo(() => {
+    const flashGrades = boulderItems
+      .filter((item) => item.isFlash)
+      .map((item) => item.boulderGrade)
+      .filter(
+        (
+          grade
+        ): grade is BoulderGrade =>
+          grade !== undefined
+      );
+
+    if (flashGrades.length === 0) {
+      return null;
+    }
+
+    return Math.max(...flashGrades);
+  }, [boulderItems]);
+
+  const flashRate = useMemo(() => {
+    const itemsWithFlashInformation =
+      boulderItems.filter(
+        (item) => item.isFlash !== undefined
+      );
+
+    if (
+      itemsWithFlashInformation.length === 0
+    ) {
+      return null;
+    }
+
+    const flashCount =
+      itemsWithFlashInformation.filter(
+        (item) => item.isFlash === true
+      ).length;
+
+    return roundOne(
+      (flashCount /
+        itemsWithFlashInformation.length) *
+        100
+    );
+  }, [boulderItems]);
+
+    const bouldersPerSession = useMemo(() => {
+      if (boulderSessionCount === 0) {
+        return null;
+      }
+
+      return roundOne(
+        boulderItems.length /
+          boulderSessionCount
+      );
+    }, [
+      boulderItems,
+      boulderSessionCount,
+    ]);
+
+    const aggregatedBoulderCount = useMemo(() => {
+      return aggregateSum(
+        boulderEntryDates,
+        (entry) => entry.date,
+        () => 1,
+        aggregationMode
+      ).map((item) => ({
+        label: item.label,
+        value: item.value,
+      }));
+    }, [
+      boulderEntryDates,
+      aggregationMode,
+    ]);
+
+    const aggregatedAverageGrade = useMemo(() => {
+      return aggregateAverage(
+        boulderEntryDates,
+        (entry) => entry.date,
+        (entry) =>
+          entry.item.boulderGrade,
+        aggregationMode
+      ).map((item) => ({
+        label: item.label,
+        value: roundOne(item.value),
+      }));
+    }, [
+      boulderEntryDates,
+      aggregationMode,
+    ]);                                     
+
+  const aggregatedBoulderSessions =
+    useMemo(() => {
+      const boulderEntryIds = new Set(
+        boulderItems.map(
+          (item) => item.diaryEntryId
+        )
+      );
+
+      const sessions = filteredEntries.filter(
+        (entry) =>
+          entry.id !== undefined &&
+          boulderEntryIds.has(entry.id)
+      );
+
+      return aggregateSum(
+        sessions,
+        (entry) => entry.date,
+        () => 1,
+        aggregationMode
+      ).map((item) => ({
+        label: item.label,
+        value: item.value,
+      }));
+    }, [
+      boulderItems,
+      filteredEntries,
+      aggregationMode,
+    ]);
+
+  const trendPeriod = useMemo(() => {
+    return getTrendPeriod(
+      trendRangeDays
+    );
+  }, [trendRangeDays]);
+
+  const currentTrendBoulders = useMemo(() => {
+    return filterCurrentTrendPeriod(
+      allDatedBoulderItems,
+      trendPeriod
+    );
+  }, [
+    allDatedBoulderItems,
+    trendPeriod,
+  ]);
+
+  const previousTrendBoulders = useMemo(() => {
+    return filterPreviousTrendPeriod(
+      allDatedBoulderItems,
+      trendPeriod
+    );
+  }, [
+    allDatedBoulderItems,
+    trendPeriod,
+  ]);
+
+  const totalBoulderTrend = useMemo(() => {
+    return createCountTrend(
+      currentTrendBoulders.length,
+      previousTrendBoulders.length
+    );
+  }, [
+    currentTrendBoulders,
+    previousTrendBoulders,
+  ]);
+
+  const boulderSessionTrend = useMemo(() => {
+    const currentSessionCount =
+      new Set(
+        currentTrendBoulders.map(
+          ({ item }) =>
+            item.diaryEntryId
+        )
+      ).size;
+
+    const previousSessionCount =
+      new Set(
+        previousTrendBoulders.map(
+          ({ item }) =>
+            item.diaryEntryId
+        )
+      ).size;
+
+    return createCountTrend(
+      currentSessionCount,
+      previousSessionCount
+    );
+  }, [
+    currentTrendBoulders,
+    previousTrendBoulders,
+  ]);
+
+  const averageGradeTrend = useMemo(() => {
+    return createAverageGradeTrend(
+      currentTrendBoulders,
+      previousTrendBoulders,
+      3
+    );
+  }, [
+    currentTrendBoulders,
+    previousTrendBoulders,
+  ]);
+
+  const trendFlashRate = useMemo(() => {
+    return createFlashRateTrend(
+      currentTrendBoulders,
+      previousTrendBoulders,
+      5
+    );
+  }, [
+    currentTrendBoulders,
+    previousTrendBoulders,
+  ]);
+
+  const gradeCountTrends = useMemo(() => {
+    return createGradeCountTrends(
+      currentTrendBoulders,
+      previousTrendBoulders,
+      visibleBoulderGrades
+    );
+  }, [
+    currentTrendBoulders,
+    previousTrendBoulders,
+    visibleBoulderGrades,
+  ]);
+
+  const styleGradeCountTrends = useMemo(() => {
+    return createStyleGradeCountTrends(
+      currentTrendBoulders,
+      previousTrendBoulders,
+      boulderStyles,
+      visibleBoulderGrades
+    );
+  }, [
+    currentTrendBoulders,
+    previousTrendBoulders,
+    visibleBoulderGrades,
+  ]);
+
+  const styleAverageGradeTrends =
+    useMemo(() => {
+      return createStyleAverageGradeTrends(
+        currentTrendBoulders,
+        previousTrendBoulders,
+        boulderStyles
+      );
+    }, [
+      currentTrendBoulders,
+      previousTrendBoulders,
+    ]);
+
+  const gradeFlashRateTrends = useMemo(() => {
+    return createGradeFlashRateTrends(
+      currentTrendBoulders,
+      previousTrendBoulders,
+      visibleBoulderGrades
+    );
+  }, [
+    currentTrendBoulders,
+    previousTrendBoulders,
+    visibleBoulderGrades,
+  ]);
+
+  const styleGradeFlashRateTrends =
+    useMemo(() => {
+      return createStyleGradeFlashRateTrends(
+        currentTrendBoulders,
+        previousTrendBoulders,
+        boulderStyles,
+        visibleBoulderGrades
+      );
+    }, [
+      currentTrendBoulders,
+      previousTrendBoulders,
+      visibleBoulderGrades,
+    ]);
+
+  const gradeSessionsTrends = useMemo(() => {
+    return createGradeSessionsTrends(
+      currentTrendBoulders,
+      previousTrendBoulders,
+      visibleBoulderGrades
+    );
+  }, [
+    currentTrendBoulders,
+    previousTrendBoulders,
+    visibleBoulderGrades,
+  ]);
+
+  const styleGradeSessionsTrends =
+    useMemo(() => {
+      return createStyleGradeSessionsTrends(
+        currentTrendBoulders,
+        previousTrendBoulders,
+        boulderStyles,
+        visibleBoulderGrades
+      );
+    }, [
+      currentTrendBoulders,
+      previousTrendBoulders,
+      visibleBoulderGrades,
+    ]);
+
+  function toggleBoulderGrade(
+    grade: BoulderGrade
+  ) {
+    setSelectedBoulderGrades((current) => {
+      if (current.includes(grade)) {
+        return current.filter(
+          (item) => item !== grade
+        );
+      }
+
+      return [...current, grade].sort(
+        (a, b) => a - b
+      );
+    });
+  }
+
   return (
     <section className="card">
+
       <div className="page-header">
         <div>
           <h2>Statistik</h2>
@@ -1006,9 +1942,17 @@ export default function StatisticsPage() {
         <h3>Zeitraum</h3>
 
         <div className="form-block compact">
+          <label className="field-label">
+            Datenbereich
+          </label>
+
           <select
             value={periodMode}
-            onChange={(event) => setPeriodMode(event.target.value as PeriodMode)}
+            onChange={(event) =>
+              setPeriodMode(
+                event.target.value as PeriodMode
+              )
+            }
           >
             <option value="all">Gesamt</option>
             <option value="year">Jahr</option>
@@ -1016,30 +1960,76 @@ export default function StatisticsPage() {
           </select>
 
           {periodMode !== "all" && (
-            <select
-              value={selectedYear}
-              onChange={(event) => setSelectedYear(Number(event.target.value))}
-            >
-              {availableYears.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
+            <>
+              <label className="field-label">
+                Jahr
+              </label>
+
+              <select
+                value={selectedYear}
+                onChange={(event) =>
+                  setSelectedYear(
+                    Number(event.target.value)
+                  )
+                }
+              >
+                {availableYears.map((year) => (
+                  <option
+                    key={year}
+                    value={year}
+                  >
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </>
           )}
 
           {periodMode === "month" && (
-            <select
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(Number(event.target.value))}
-            >
-              {monthOptions.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
+            <>
+              <label className="field-label">
+                Monat
+              </label>
+
+              <select
+                value={selectedMonth}
+                onChange={(event) =>
+                  setSelectedMonth(
+                    Number(event.target.value)
+                  )
+                }
+              >
+                {monthOptions.map((month) => (
+                  <option
+                    key={month.value}
+                    value={month.value}
+                  >
+                    {month.label}
+                  </option>
+                ))}
+              </select>
+            </>
           )}
+
+          <label className="field-label">
+            Zeitliche Aggregation
+          </label>
+
+          <select
+            value={aggregationMode}
+            onChange={(event) =>
+              setAggregationMode(
+                event.target.value as AggregationMode
+              )
+            }
+          >
+            <option value="week">Woche</option>
+            <option value="month">Monat</option>
+            <option value="quarter">
+              Quartal
+            </option>
+            <option value="year">Jahr</option>
+          </select>
         </div>
       </div>
 
@@ -1252,170 +2242,1095 @@ export default function StatisticsPage() {
 
       {tab === "bouldern" && (
         <>
-          <div className="sub-card">
-            <h3>
-              Bouldern · {periodLabel(periodMode, selectedYear, selectedMonth)}
-            </h3>
 
-            <div className="stats-grid">
-              <StatBox label="Boulder" value={boulderItems.length.toString()} />
-              <StatBox
-                label="Boulder-Sessions"
-                value={boulderSessionCount.toString()}
-              />
-              <StatBox
-                label="Schwerster Grad"
-                value={heaviestBoulderGrade ? `G${heaviestBoulderGrade}` : "-"}
-              />
-              <StatBox
-                label="Ø Grad"
-                value={averageBoulderGrade ? averageBoulderGrade.toString() : "-"}
-              />
+          <div className="boulder-statistics-tab-bar">
+            <button
+              type="button"
+              className={
+                boulderStatisticsTab === "overview"
+                  ? "active-tab"
+                  : ""
+              }
+              onClick={() =>
+                setBoulderStatisticsTab("overview")
+              }
+            >
+              Übersicht
+            </button>
+
+            <button
+              type="button"
+              className={
+                boulderStatisticsTab === "timeline"
+                  ? "active-tab"
+                  : ""
+              }
+              onClick={() =>
+                setBoulderStatisticsTab("timeline")
+              }
+            >
+              Verlauf
+            </button>
+
+            <button
+              type="button"
+              className={
+                boulderStatisticsTab === "styles"
+                  ? "active-tab"
+                  : ""
+              }
+              onClick={() =>
+                setBoulderStatisticsTab("styles")
+              }
+            >
+              Styles &amp; Grade
+            </button>
+
+            <button
+              type="button"
+              className={
+                boulderStatisticsTab === "trends"
+                  ? "active-tab"
+                  : ""
+              }
+              onClick={() =>
+                setBoulderStatisticsTab("trends")
+              }
+            >
+              Trends
+            </button>
+          </div>
+
+          {boulderStatisticsTab === "overview" && (
+            <>
+            <div className="sub-card">
+              <h3>
+                Bouldern ·{" "}
+                {periodLabel(
+                  periodMode,
+                  selectedYear,
+                  selectedMonth
+                )}
+              </h3>
+
+              <div className="stats-grid">
+                <StatBox
+                  label="Boulder gesamt"
+                  value={boulderItems.length.toString()}
+                />
+
+                <StatBox
+                  label="Boulder-Sessions"
+                  value={boulderSessionCount.toString()}
+                />
+
+                <StatBox
+                  label="Boulder pro Session"
+                  value={
+                    bouldersPerSession?.toString() ??
+                    "-"
+                  }
+                />
+
+                <StatBox
+                  label="Boulder letzte 30 Tage"
+                  value={bouldersLast30Days.toString()}
+                />
+
+                <StatBox
+                  label="Ø Grad"
+                  value={
+                    averageBoulderGrade?.toString() ??
+                    "-"
+                  }
+                />
+
+                <StatBox
+                  label="Ø Grad letzte 30 Tage"
+                  value={
+                    averageGradeLast30Days?.toString() ??
+                    "-"
+                  }
+                />
+
+                <StatBox
+                  label="Schwerster Grad"
+                  value={
+                    heaviestBoulderGrade
+                      ? `G${heaviestBoulderGrade}`
+                      : "-"
+                  }
+                />
+
+                <StatBox
+                  label="Hardest Flash"
+                  value={
+                    hardestFlashGrade
+                      ? `G${hardestFlashGrade}`
+                      : "-"
+                  }
+                />
+
+                <StatBox
+                  label="Flash-Rate"
+                  value={
+                    flashRate !== null
+                      ? `${flashRate} %`
+                      : "-"
+                  }
+                />
+              </div>
             </div>
-          </div>
+          </>
+        )}
 
-          <div className="sub-card">
-            <h3>Boulder je Grad über Zeit</h3>
+        {boulderStatisticsTab === "timeline" && (
+          <>
+            <div className="sub-card">
+              <h3>Boulder im Zeitverlauf</h3>
 
-            {boulderGradeTimelineData.length === 0 ? (
-              <p>Keine Boulder-Daten im ausgewählten Zeitraum.</p>
-            ) : (
-              <MultiLineChart
-                data={boulderGradeTimelineData}
-                series={boulderGradesWithData.map((grade) => `G${grade}`)}
-                colors={gradeColors}
-                xLabel="Datum"
-                yLabel="Anzahl Boulder"
-                unit="Boulder"
-              />
-            )}
-          </div>
-
-          <div className="sub-card">
-            <h3>Boulder je Grad</h3>
-
-            {boulderGradeChartData.length === 0 ? (
-              <p>Keine Boulder-Daten im ausgewählten Zeitraum.</p>
-            ) : (
-              <SimpleBarChart data={boulderGradeChartData} />
-            )}
-
-            <div className="stats-list">
-              {boulderGradesWithData.map((grade) => {
-                const count = getBoulderCountByGrade(grade);
-                const avgAttempts = getAverageAttemptsByGrade(grade);
-                const perSession = getBouldersPerSessionByGrade(grade);
-
-                return (
-                  <div key={grade} className="stats-row">
-                    <span>Grad {grade}</span>
-                    <span>{count} Boulder</span>
-                    <span>Ø {avgAttempts ?? "-"} Versuche</span>
-                    <span>{perSession ?? "-"} / Session</span>
-                  </div>
-                );
-              })}
+              {aggregatedBoulderCount.length === 0 ? (
+                <p>
+                  Keine Boulder-Daten im ausgewählten
+                  Zeitraum.
+                </p>
+              ) : (
+                <SimpleBarChart
+                  data={aggregatedBoulderCount}
+                />
+              )}
             </div>
-          </div>
 
-          <div className="sub-card">
-            <h3>Boulder nach Style und Grad</h3>
+            <div className="sub-card">
+              <h3>
+                Boulder-Sessions im Zeitverlauf
+              </h3>
 
-            {boulderGradesWithData.length === 0 ? (
-              <p>Keine Boulder-Daten im ausgewählten Zeitraum.</p>
-            ) : (
-              <div className="boulder-table">
-                <div
-                  className="boulder-table-header dynamic-grade-table"
-                  style={{
-                    gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 54px)`,
-                  }}
+              {aggregatedBoulderSessions.length ===
+              0 ? (
+                <p>
+                  Keine Boulder-Sessions im
+                  ausgewählten Zeitraum.
+                </p>
+              ) : (
+                <SimpleBarChart
+                  data={aggregatedBoulderSessions}
+                />
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>
+                Durchschnittlicher Grad im
+                Zeitverlauf
+              </h3>
+
+              {aggregatedAverageGrade.length === 0 ? (
+                <p>
+                  Keine Grade im ausgewählten
+                  Zeitraum.
+                </p>
+              ) : (
+                <SimpleLineChart
+                  data={aggregatedAverageGrade}
+                  unit="Grad"
+                  color="#a78bfa"
+                  xLabel="Zeitraum"
+                  yLabel="Ø Grad"
+                />
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Verlaufsfilter</h3>
+
+              <div className="form-block compact">
+                <label className="field-label">
+                  Style
+                </label>
+
+                <select
+                  value={selectedTimelineStyle}
+                  onChange={(event) =>
+                    setSelectedTimelineStyle(
+                      event.target.value as
+                        | BoulderStyle
+                        | "all"
+                    )
+                  }
                 >
-                  <span>Style</span>
+                  <option value="all">
+                    Alle Styles
+                  </option>
 
-                  {boulderGradesWithData.map((grade) => (
-                    <span key={grade}>G{grade}</span>
+                  {boulderStyles.map((style) => (
+                    <option
+                      key={style}
+                      value={style}
+                    >
+                      {style}
+                    </option>
                   ))}
-                </div>
+                </select>
+              </div>
 
-                {boulderStyles.map((style) => {
-                  const rowHasData = boulderGradesWithData.some(
-                    (grade) => getBoulderCountByStyleAndGrade(style, grade) > 0
-                  );
+              <p className="hint">
+                Der Style-Filter gilt für Boulderanzahl,
+                Sessions und Flash-Rate je Grad. Bei
+                „Alle Styles“ werden alle Styles gemeinsam
+                ausgewertet.
+              </p>
+            </div>
 
-                  if (!rowHasData) return null;
+            <div className="sub-card">
+               <h3>
+                {selectedTimelineStyle === "all"
+                  ? "Boulder je Grad im Zeitverlauf"
+                  : `Boulder je Grad und Style im Zeitverlauf · ${selectedTimelineStyle}`}
+              </h3>
+
+              <p className="hint">
+                Grade auswählen, die im Diagramm
+                verglichen werden sollen.
+              </p>
+
+              <div className="grade-filter">
+                {boulderGradesWithData.map((grade) => {
+                  const isSelected =
+                    selectedBoulderGrades.includes(
+                      grade
+                    );
 
                   return (
-                    <div
-                      key={style}
-                      className="boulder-table-row dynamic-grade-table"
-                      style={{
-                        gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 54px)`,
-                      }}
+                    <button
+                      key={grade}
+                      type="button"
+                      className={
+                        isSelected
+                          ? "grade-filter-button active"
+                          : "grade-filter-button"
+                      }
+                      onClick={() =>
+                        toggleBoulderGrade(grade)
+                      }
                     >
-                      <span>{style}</span>
-
-                      {boulderGradesWithData.map((grade) => (
-                        <span key={`${style}-${grade}`}>
-                          {getBoulderCountByStyleAndGrade(style, grade)}
-                        </span>
-                      ))}
-                    </div>
+                      G{grade}
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </div>
 
-          <div className="sub-card">
-            <h3>Ø Versuche nach Style und Grad</h3>
-
-            {boulderGradesWithData.length === 0 ? (
-              <p>Keine Boulder-Daten im ausgewählten Zeitraum.</p>
-            ) : (
-              <div className="boulder-table">
-                <div
-                  className="boulder-table-header dynamic-grade-table"
-                  style={{
-                    gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 54px)`,
-                  }}
-                >
-                  <span>Style</span>
-
-                  {boulderGradesWithData.map((grade) => (
-                    <span key={grade}>G{grade}</span>
-                  ))}
-                </div>
-
-                {boulderStyles.map((style) => {
-                  const rowHasData = boulderGradesWithData.some(
+              {visibleBoulderGrades.length === 0 ? (
+                <p>
+                  Bitte mindestens einen Grad
+                  auswählen.
+                </p>
+              ) : boulderGradeTimelineData.length ===
+                0 ? (
+                <p>
+                  Keine Boulder-Daten für die
+                  ausgewählten Grade vorhanden.
+                </p>
+              ) : (
+                <MultiLineChart
+                  data={boulderGradeTimelineData}
+                  series={visibleBoulderGrades.map(
+                    (grade) => `G${grade}`
+                  )}
+                  colors={visibleBoulderGrades.map(
                     (grade) =>
-                      getAverageAttemptsByStyleAndGrade(style, grade) !== null
-                  );
+                      gradeColors[
+                        (grade - 1) %
+                          gradeColors.length
+                      ]
+                  )}
+                  xLabel="Zeitraum"
+                  yLabel="Anzahl Boulder"
+                  unit="Boulder"
+                />
+              )}
+            </div>
 
-                  if (!rowHasData) return null;
+            <div className="sub-card">
+              <h3>
+                {selectedTimelineStyle === "all"
+                  ? "Sessions je Grad im Zeitverlauf"
+                  : `Sessions je Grad und Style im Zeitverlauf · ${selectedTimelineStyle}`}
+              </h3>
+
+              <p className="hint">
+                Durchschnittliche Anzahl unterschiedlicher
+                Sessions je Boulderproblem und Zeitraum.
+              </p>
+
+              {visibleBoulderGrades.length === 0 ? (
+                <p>
+                  Bitte mindestens einen Grad auswählen.
+                </p>
+              ) : sessionsByGradeTimelineData.length ===
+                0 ? (
+                <p>
+                  Keine Session-Daten für die aktuelle
+                  Auswahl vorhanden.
+                </p>
+              ) : (
+                <MultiLineChart
+                  data={sessionsByGradeTimelineData}
+                  series={visibleBoulderGrades.map(
+                    (grade) => `G${grade}`
+                  )}
+                  colors={visibleBoulderGrades.map(
+                    (grade) =>
+                      gradeColors[
+                        (grade - 1) %
+                          gradeColors.length
+                      ]
+                  )}
+                  xLabel="Zeitraum"
+                  yLabel="Ø Sessions"
+                  unit="Sessions"
+                />
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>
+                {selectedTimelineStyle === "all"
+                  ? "Flash-Rate je Grad im Zeitverlauf"
+                  : `Flash-Rate je Grad und Style im Zeitverlauf · ${selectedTimelineStyle}`}
+              </h3>
+
+              <p className="hint">
+                Anteil der geflashten Boulder je Grad und
+                Zeitraum. Boulder ohne Flash-Information
+                werden nicht berücksichtigt.
+              </p>
+
+              {visibleBoulderGrades.length === 0 ? (
+                <p>
+                  Bitte mindestens einen Grad auswählen.
+                </p>
+              ) : flashRateByGradeTimelineData.length ===
+                0 ? (
+                <p>
+                  Keine Flash-Daten für die aktuelle
+                  Auswahl vorhanden.
+                </p>
+              ) : (
+                <MultiLineChart
+                  data={flashRateByGradeTimelineData}
+                  series={visibleBoulderGrades.map(
+                    (grade) => `G${grade}`
+                  )}
+                  colors={visibleBoulderGrades.map(
+                    (grade) =>
+                      gradeColors[
+                        (grade - 1) %
+                          gradeColors.length
+                      ]
+                  )}
+                  xLabel="Zeitraum"
+                  yLabel="Flash-Rate %"
+                  unit="%"
+                />
+              )}
+            </div>
+
+          </>
+        )}
+
+        {boulderStatisticsTab === "styles" && (
+          <>
+            <div className="sub-card">
+              <h3>Leistungsniveau je Style</h3>
+
+              <p className="hint">
+                Durchschnittlicher Bouldergrad je
+                Style. Boulder ohne Style oder Grad
+                werden nicht berücksichtigt.
+              </p>
+
+              {averageGradeByStyle.length === 0 ? (
+                <p>
+                  Noch keine geeigneten Style- und
+                  Grad-Daten vorhanden.
+                </p>
+              ) : (
+                <div className="style-performance-list">
+                  {averageGradeByStyle.map((item) => (
+                    <div
+                      key={item.style}
+                      className="style-performance-row"
+                    >
+                      <div>
+                        <strong>{item.style}</strong>
+                        <span>n = {item.count}</span>
+                      </div>
+
+                      <strong className="style-performance-value">
+                        Ø {item.average}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Boulder je Grad</h3>
+
+              {boulderGradeChartData.length === 0 ? (
+                <p>
+                  Keine Boulder-Daten im ausgewählten
+                  Zeitraum.
+                </p>
+              ) : (
+                <>
+                  <SimpleBarChart
+                    data={boulderGradeChartData}
+                  />
+
+                  <div className="stats-list">
+                    {boulderGradesWithData.map(
+                      (grade) => {
+                        const count =
+                          getBoulderCountByGrade(grade);
+
+                        const sessionData =
+                          sessionsByGrade.find(
+                            (item) =>
+                              item.grade === grade
+                          );
+
+                        return (
+                          <div
+                            key={grade}
+                            className="stats-row"
+                          >
+                            <span>Grad {grade}</span>
+
+                            <span>
+                              {count} Boulder
+                            </span>
+
+                            <span>
+                              Ø{" "}
+                              {sessionData?.averageSessions ??
+                                "-"}{" "}
+                              Sessions
+                            </span>
+
+                            <span>
+                              n ={" "}
+                              {sessionData?.count ?? count}
+                            </span>
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Boulder nach Style und Grad</h3>
+
+              {boulderGradesWithData.length === 0 ? (
+                <p>
+                  Keine Boulder-Daten im ausgewählten
+                  Zeitraum.
+                </p>
+              ) : (
+                <div className="boulder-table">
+                  <div
+                    className="boulder-table-header dynamic-grade-table"
+                    style={{
+                      gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 54px)`,
+                    }}
+                  >
+                    <span>Style</span>
+
+                    {boulderGradesWithData.map(
+                      (grade) => (
+                        <span key={grade}>
+                          G{grade}
+                        </span>
+                      )
+                    )}
+                  </div>
+
+                  {boulderStyles.map((style) => {
+                    const rowHasData =
+                      boulderGradesWithData.some(
+                        (grade) =>
+                          getBoulderCountByStyleAndGrade(
+                            style,
+                            grade
+                          ) > 0
+                      );
+
+                    if (!rowHasData) {
+                      return null;
+                    }
+
+                    return (
+                      <div
+                        key={style}
+                        className="boulder-table-row dynamic-grade-table"
+                        style={{
+                          gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 54px)`,
+                        }}
+                      >
+                        <span>{style}</span>
+
+                        {boulderGradesWithData.map(
+                          (grade) => (
+                            <span
+                              key={`${style}-${grade}`}
+                            >
+                              {getBoulderCountByStyleAndGrade(
+                                style,
+                                grade
+                              )}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Sessions je Grad und Style</h3>
+
+              <p className="hint">
+                Durchschnittliche Anzahl unterschiedlicher
+                Sessions je Boulderproblem.
+              </p>
+
+              {boulderGradesWithData.length === 0 ? (
+                <p>
+                  Keine Boulder-Daten im ausgewählten Zeitraum.
+                </p>
+              ) : (
+                <div className="boulder-table">
+                  <div
+                    className="boulder-table-header dynamic-grade-table"
+                    style={{
+                      gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 70px)`,
+                    }}
+                  >
+                    <span>Style</span>
+
+                    {boulderGradesWithData.map((grade) => (
+                      <span key={grade}>
+                        G{grade}
+                      </span>
+                    ))}
+                  </div>
+
+                  {boulderStyles.map((style) => {
+                    const rowHasData =
+                      boulderGradesWithData.some(
+                        (grade) =>
+                          getAverageSessionsByStyleAndGrade(
+                            style,
+                            grade
+                          ) !== null
+                      );
+
+                    if (!rowHasData) {
+                      return null;
+                    }
+
+                    return (
+                      <div
+                        key={style}
+                        className="boulder-table-row dynamic-grade-table"
+                        style={{
+                          gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 70px)`,
+                        }}
+                      >
+                        <span>{style}</span>
+
+                        {boulderGradesWithData.map((grade) => {
+                          const value =
+                            getAverageSessionsByStyleAndGrade(
+                              style,
+                              grade
+                            );
+
+                          return (
+                            <span key={`${style}-${grade}`}>
+                              {value !== null
+                                ? `Ø ${value}`
+                                : "-"}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Flash-Rate je Grad</h3>
+
+              <p className="hint">
+                Boulder ohne gespeicherte Flash-Information
+                werden nicht berücksichtigt.
+              </p>
+
+              {flashRateByGrade.length === 0 ? (
+                <p>
+                  Noch keine Flash-Daten vorhanden.
+                </p>
+              ) : (
+                <div className="stats-list">
+                  {flashRateByGrade.map((item) => (
+                    <div
+                      key={item.grade}
+                      className="stats-row"
+                    >
+                      <span>
+                        Grad {item.grade}
+                      </span>
+
+                      <span>
+                        {item.flashRate} %
+                      </span>
+
+                      <span>
+                        {item.flashes} Flash
+                      </span>
+
+                      <span>
+                        n = {item.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Flash-Rate je Grad und Style</h3>
+
+              <p className="hint">
+                Flash-Anteil je Kombination aus Style und Grad.
+              </p>
+
+              {boulderGradesWithData.length === 0 ? (
+                <p>
+                  Keine Boulder-Daten im ausgewählten Zeitraum.
+                </p>
+              ) : (
+                <div className="boulder-table">
+                  <div
+                    className="boulder-table-header dynamic-grade-table"
+                    style={{
+                      gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 72px)`,
+                    }}
+                  >
+                    <span>Style</span>
+
+                    {boulderGradesWithData.map((grade) => (
+                      <span key={grade}>
+                        G{grade}
+                      </span>
+                    ))}
+                  </div>
+
+                  {boulderStyles.map((style) => {
+                    const rowHasData =
+                      boulderGradesWithData.some(
+                        (grade) =>
+                          getFlashRateByStyleAndGrade(
+                            style,
+                            grade
+                          ) !== null
+                      );
+
+                    if (!rowHasData) {
+                      return null;
+                    }
+
+                    return (
+                      <div
+                        key={style}
+                        className="boulder-table-row dynamic-grade-table"
+                        style={{
+                          gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 72px)`,
+                        }}
+                      >
+                        <span>{style}</span>
+
+                        {boulderGradesWithData.map((grade) => {
+                          const result =
+                            getFlashRateByStyleAndGrade(
+                              style,
+                              grade
+                            );
+
+                          return (
+                            <span
+                              key={`${style}-${grade}`}
+                              title={
+                                result
+                                  ? `${result.flashes} von ${result.count} geflasht`
+                                  : "Keine Daten"
+                              }
+                            >
+                              {result
+                                ? `${result.rate} %`
+                                : "-"}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {boulderStatisticsTab === "trends" && (
+          <>
+            <div className="sub-card">
+              <h3>Rollierende Trends</h3>
+
+              <p className="hint">
+                Der aktuelle Zeitraum wird mit dem
+                unmittelbar vorherigen gleich langen
+                Zeitraum verglichen.
+              </p>
+
+              <div className="form-block compact">
+                <label className="field-label">
+                  Vergleichszeitraum
+                </label>
+
+                <select
+                  value={trendRangeDays}
+                  onChange={(event) =>
+                    setTrendRangeDays(
+                      Number(
+                        event.target.value
+                      ) as TrendRangeDays
+                    )
+                  }
+                >
+                  <option value={30}>
+                    Letzte 30 Tage
+                  </option>
+
+                  <option value={90}>
+                    Letzte 90 Tage
+                  </option>
+
+                  <option value={180}>
+                    Letzte 180 Tage
+                  </option>
+
+                  <option value={365}>
+                    Letzte 365 Tage
+                  </option>
+                </select>
+              </div>
+
+              <div className="trend-period-info">
+                <div>
+                  <span>Aktuell</span>
+
+                  <strong>
+                    {trendPeriod.currentStart} bis{" "}
+                    {trendPeriod.currentEnd}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Vergleich</span>
+
+                  <strong>
+                    {trendPeriod.previousStart} bis{" "}
+                    {trendPeriod.previousEnd}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="trend-grid">
+                <TrendCard
+                  label="Boulder gesamt"
+                  trend={totalBoulderTrend}
+                  valueSuffix=" Boulder"
+                />
+
+                <TrendCard
+                  label="Boulder-Sessions"
+                  trend={boulderSessionTrend}
+                  valueSuffix=" Sessions"
+                />
+
+                <TrendCard
+                  label="Ø Grad"
+                  trend={averageGradeTrend}
+                  valueSuffix=""
+                  minimumLabel={`n = ${averageGradeTrend.previousCount} → ${averageGradeTrend.currentCount}`}
+                />
+
+                <FlashTrendCard
+                  label="Flash-Rate"
+                  trend={trendFlashRate}
+                />
+              </div>
+            </div>
+
+            <div className="sub-card">
+              <h3>Trend je Grad</h3>
+
+              <p className="hint">
+                Anzahl Boulder je ausgewähltem Grad.
+                Mindestens zwei Boulder je Zeitraum
+                werden benötigt.
+              </p>
+
+              <div className="grade-filter">
+                {boulderGradesWithData.map((grade) => {
+                  const isSelected =
+                    selectedBoulderGrades.includes(
+                      grade
+                    );
 
                   return (
-                    <div
-                      key={style}
-                      className="boulder-table-row dynamic-grade-table"
-                      style={{
-                        gridTemplateColumns: `110px repeat(${boulderGradesWithData.length}, 54px)`,
-                      }}
+                    <button
+                      key={grade}
+                      type="button"
+                      className={
+                        isSelected
+                          ? "grade-filter-button active"
+                          : "grade-filter-button"
+                      }
+                      onClick={() =>
+                        toggleBoulderGrade(grade)
+                      }
                     >
-                      <span>{style}</span>
-
-                      {boulderGradesWithData.map((grade) => (
-                        <span key={`${style}-${grade}`}>
-                          {getAverageAttemptsByStyleAndGrade(style, grade) ?? "-"}
-                        </span>
-                      ))}
-                    </div>
+                      G{grade}
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </div>
+
+              {gradeCountTrends.length === 0 ? (
+                <p>
+                  Keine Grade für den Trend ausgewählt.
+                </p>
+              ) : (
+                <div className="trend-grid">
+                  {gradeCountTrends.map(
+                    ({ grade, trend }) => (
+                      <TrendCard
+                        key={grade}
+                        label={`Grad ${grade}`}
+                        trend={trend}
+                        valueSuffix=" Boulder"
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Flash-Trend je Grad</h3>
+
+              <p className="hint">
+                Veränderung der Flash-Rate je
+                ausgewähltem Grad. Die Differenz wird in
+                Prozentpunkten angegeben. Mindestens fünf
+                Boulder mit Flash-Information pro
+                Vergleichszeitraum werden benötigt.
+              </p>
+
+              {gradeFlashRateTrends.length === 0 ? (
+                <p>
+                  Keine Grade für den Trend ausgewählt.
+                </p>
+              ) : (
+                <div className="trend-grid">
+                  {gradeFlashRateTrends.map(
+                    ({ grade, trend }) => (
+                      <FlashTrendCard
+                        key={grade}
+                        label={`Grad ${grade}`}
+                        trend={trend}
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>
+                Flash-Trend je Grad und Style
+              </h3>
+
+              <p className="hint">
+                Veränderung der Flash-Rate je Kombination
+                aus Style und ausgewähltem Grad.
+              </p>
+
+              {styleGradeFlashRateTrends.length === 0 ? (
+                <p>
+                  Keine Style-/Grad-Daten für den
+                  Flash-Vergleich.
+                </p>
+              ) : (
+                <div className="trend-grid">
+                  {styleGradeFlashRateTrends.map(
+                    ({ style, grade, trend }) => (
+                      <FlashTrendCard
+                        key={`${style}-${grade}`}
+                        label={`${style} · G${grade}`}
+                        trend={trend}
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Sessions-Trend je Grad</h3>
+
+              <p className="hint">
+                Vergleich der durchschnittlich benötigten
+                Sessions je Boulderproblem. Ein sinkender
+                Wert wird als Verbesserung bewertet.
+                Mindestens zwei Boulder mit
+                Session-Information pro Zeitraum werden
+                benötigt.
+              </p>
+
+              {gradeSessionsTrends.length === 0 ? (
+                <p>
+                  Keine Grade für den Trend ausgewählt.
+                </p>
+              ) : (
+                <div className="trend-grid">
+                  {gradeSessionsTrends.map(
+                    ({ grade, trend }) => (
+                      <SessionsTrendCard
+                        key={grade}
+                        label={`Grad ${grade}`}
+                        trend={trend}
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>
+                Sessions-Trend je Grad und Style
+              </h3>
+
+              <p className="hint">
+                Vergleich der durchschnittlich benötigten
+                Sessions je Kombination aus Style und
+                ausgewähltem Grad. Weniger Sessions werden
+                als positive Entwicklung dargestellt.
+              </p>
+
+              {styleGradeSessionsTrends.length === 0 ? (
+                <p>
+                  Keine Style-/Grad-Daten für den
+                  Sessions-Vergleich.
+                </p>
+              ) : (
+                <div className="trend-grid">
+                  {styleGradeSessionsTrends.map(
+                    ({ style, grade, trend }) => (
+                      <SessionsTrendCard
+                        key={`${style}-${grade}`}
+                        label={`${style} · G${grade}`}
+                        trend={trend}
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Durchschnittsgrad je Style</h3>
+
+              <p className="hint">
+                Vergleich des durchschnittlichen Grades
+                je Style. Mindestens drei Boulder mit
+                Grad pro Zeitraum werden benötigt.
+              </p>
+
+              {styleAverageGradeTrends.length ===
+              0 ? (
+                <p>
+                  Keine Style-Daten für den Vergleich.
+                </p>
+              ) : (
+                <div className="trend-grid">
+                  {styleAverageGradeTrends.map(
+                    ({ style, trend }) => (
+                      <TrendCard
+                        key={style}
+                        label={style}
+                        trend={trend}
+                        valueSuffix=""
+                        minimumLabel={`n = ${trend.previousCount} → ${trend.currentCount}`}
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="sub-card">
+              <h3>Trend je Grad und Style</h3>
+
+              <p className="hint">
+                Anzahl Boulder je Kombination aus Style
+                und ausgewähltem Grad.
+              </p>
+
+              {styleGradeCountTrends.length === 0 ? (
+                <p>
+                  Keine Style-/Grad-Daten für den
+                  Vergleich.
+                </p>
+              ) : (
+                <div className="trend-grid">
+                  {styleGradeCountTrends.map(
+                    ({ style, grade, trend }) => (
+                      <TrendCard
+                        key={`${style}-${grade}`}
+                        label={`${style} · G${grade}`}
+                        trend={trend}
+                        valueSuffix=" Boulder"
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
         </>
       )}
 
@@ -1454,7 +3369,7 @@ export default function StatisticsPage() {
                 data={bodyWeightChartData}
                 unit="kg"
                 color="#34d399"
-                xLabel="Datum"
+                xLabel="Zeitraum"
                 yLabel="Gewicht kg"
               />
             )}
@@ -1470,7 +3385,7 @@ export default function StatisticsPage() {
                 data={bodyFatChartData}
                 unit="%"
                 color="#f97316"
-                xLabel="Datum"
+                xLabel="Zeitraum"
                 yLabel="KFA %"
               />
             )}
@@ -1537,6 +3452,193 @@ function StatBox({ label, value }: { label: string; value: string }) {
     <div className="stat-box">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function TrendCard({
+  label,
+  trend,
+  valueSuffix,
+  minimumLabel,
+}: {
+  label: string;
+  trend: TrendValue;
+  valueSuffix: string;
+  minimumLabel?: string;
+}) {
+  const statusClass =
+    trend.status === "increase"
+      ? "positive"
+      : trend.status === "decrease"
+      ? "negative"
+      : trend.status === "new"
+      ? "new"
+      : "neutral";
+
+  function formatTrendHeadline() {
+    if (trend.status === "insufficient") {
+      return "Nicht genügend Daten";
+    }
+
+    if (trend.status === "new") {
+      return "Neu";
+    }
+
+    if (trend.status === "unchanged") {
+      return "0 %";
+    }
+
+    const prefix =
+      trend.percentChange !== null &&
+      trend.percentChange > 0
+        ? "+"
+        : "";
+
+    return `${prefix}${
+      trend.percentChange ?? 0
+    } %`;
+  }
+
+  return (
+    <div
+      className={`trend-card ${statusClass}`}
+    >
+      <span className="trend-card-label">
+        {label}
+      </span>
+
+      <strong className="trend-card-value">
+        {formatTrendHeadline()}
+      </strong>
+
+      <span className="trend-card-comparison">
+        {trend.previous}
+        {valueSuffix} → {trend.current}
+        {valueSuffix}
+      </span>
+
+      {minimumLabel && (
+        <span className="trend-card-sample">
+          {minimumLabel}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function FlashTrendCard({
+  label,
+  trend,
+}: {
+  label: string;
+  trend: FlashRateTrendValue;
+}) {
+  const statusClass =
+    trend.status === "increase"
+      ? "positive"
+      : trend.status === "decrease"
+      ? "negative"
+      : "neutral";
+
+  const prefix =
+    trend.differencePoints > 0
+      ? "+"
+      : "";
+
+  return (
+    <div
+      className={`trend-card ${statusClass}`}
+    >
+      <span className="trend-card-label">
+        {label}
+      </span>
+
+      <strong className="trend-card-value">
+        {trend.status === "insufficient"
+          ? "Nicht genügend Daten"
+          : `${prefix}${trend.differencePoints} Prozentpunkte`}
+      </strong>
+
+      <span className="trend-card-comparison">
+        {trend.previousRate} % →{" "}
+        {trend.currentRate} %
+      </span>
+
+      <span className="trend-card-sample">
+        n = {trend.previousCount} →{" "}
+        {trend.currentCount}
+      </span>
+    </div>
+  );
+}
+
+function SessionsTrendCard({
+  label,
+  trend,
+}: {
+  label: string;
+  trend: SessionsTrendValue;
+}) {
+  const statusClass =
+    trend.status === "increase"
+      ? "positive"
+      : trend.status === "decrease"
+      ? "negative"
+      : "neutral";
+
+  function formatHeadline() {
+    if (trend.status === "insufficient") {
+      return "Nicht genügend Daten";
+    }
+
+    if (
+      trend.status === "unchanged" ||
+      trend.percentChange === 0
+    ) {
+      return "0 %";
+    }
+
+    if (trend.percentChange === null) {
+      return "-";
+    }
+
+    const prefix =
+      trend.percentChange > 0
+        ? "+"
+        : "";
+
+    return `${prefix}${trend.percentChange} %`;
+  }
+
+  return (
+    <div
+      className={`trend-card ${statusClass}`}
+    >
+      <span className="trend-card-label">
+        {label}
+      </span>
+
+      <strong className="trend-card-value">
+        {formatHeadline()}
+      </strong>
+
+      <span className="trend-card-comparison">
+        Ø {trend.previous} → Ø{" "}
+        {trend.current} Sessions
+      </span>
+
+      <span className="trend-card-sample">
+        n = {trend.previousCount} →{" "}
+        {trend.currentCount}
+      </span>
+
+      {trend.status !== "insufficient" && (
+        <span className="trend-card-sample">
+          Weniger Sessions werden als
+          Verbesserung bewertet.
+        </span>
+      )}
     </div>
   );
 }
