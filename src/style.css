@@ -1030,3 +1030,1440 @@ button:disabled {
     width: 100%;
   }
 }
+
+.superset-session-card {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(96, 165, 250, 0.06);
+}
+
+.superset-round {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #3f3f46;
+  border-radius: 16px;
+  background: #09090b;
+}
+
+.superset-round > h3 {
+  margin: 0 0 12px;
+  color: #60a5fa;
+}
+
+.superset-exercise-item {
+  margin-top: 10px;
+  background: #18181b;
+}
+
+.grade-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.grade-filter-button {
+  width: auto;
+  min-width: 48px;
+  padding: 9px 12px;
+
+  border: 1px solid #3f3f46;
+  border-radius: 999px;
+
+  background: #09090b;
+  color: #a1a1aa;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.grade-filter-button:hover {
+  border-color: #60a5fa;
+  color: #f4f4f5;
+}
+
+.grade-filter-button.active {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.16);
+  color: #60a5fa;
+}
+
+.style-performance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.style-performance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  padding: 13px 14px;
+
+  border: 1px solid #27272a;
+  border-radius: 15px;
+
+  background: #09090b;
+}
+
+.style-performance-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.style-performance-row span {
+  color: #a1a1aa;
+  font-size: 12px;
+}
+
+.style-performance-value {
+  color: #a78bfa;
+  font-size: 20px;
+  white-space: nowrap;
+}
+
+.trend-period-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.trend-period-info > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  padding: 12px;
+
+  border: 1px solid #27272a;
+  border-radius: 14px;
+
+  background: #09090b;
+}
+
+.trend-period-info span {
+  color: #a1a1aa;
+  font-size: 12px;
+}
+
+.trend-period-info strong {
+  color: #f4f4f5;
+  font-size: 13px;
+}
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(180px, 1fr)
+  );
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.trend-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  min-height: 130px;
+  padding: 14px;
+
+  border: 1px solid #3f3f46;
+  border-radius: 18px;
+
+  background: #09090b;
+}
+
+.trend-card.positive {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(52, 211, 153, 0.07);
+}
+
+.trend-card.negative {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(248, 113, 113, 0.07);
+}
+
+.trend-card.new {
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(96, 165, 250, 0.07);
+}
+
+.trend-card-label {
+  color: #a1a1aa;
+  font-size: 13px;
+}
+
+.trend-card-value {
+  color: #f4f4f5;
+  font-size: 21px;
+  line-height: 1.15;
+}
+
+.trend-card.positive .trend-card-value {
+  color: #34d399;
+}
+
+.trend-card.negative .trend-card-value {
+  color: #f87171;
+}
+
+.trend-card.new .trend-card-value {
+  color: #60a5fa;
+}
+
+.trend-card-comparison {
+  color: #d4d4d8;
+  font-size: 13px;
+}
+
+.trend-card-sample {
+  margin-top: auto;
+  color: #71717a;
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .trend-period-info {
+    grid-template-columns: 1fr;
+  }
+
+  .trend-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.boulder-statistics-tab-bar {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 8px;
+
+  margin: 14px 0 18px;
+  padding: 5px;
+
+  border: 1px solid #27272a;
+  border-radius: 16px;
+
+  background: #09090b;
+}
+
+.boulder-statistics-tab-bar button {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 10px;
+
+  border: 1px solid transparent;
+  border-radius: 12px;
+
+  background: transparent;
+  color: #a1a1aa;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.boulder-statistics-tab-bar button:hover {
+  color: #f4f4f5;
+  background: #18181b;
+}
+
+.boulder-statistics-tab-bar button.active-tab {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(96, 165, 250, 0.16);
+  color: #60a5fa;
+}
+
+@media (max-width: 700px) {
+  .boulder-statistics-tab-bar {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .boulder-statistics-tab-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+.header-title-block {
+  min-width: 0;
+  flex: 1;
+}
+
+.header-settings-button {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 1px solid #3f3f46;
+  border-radius: 14px;
+
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+.header-settings-button:hover {
+  border-color: #60a5fa;
+  color: #60a5fa;
+}
+
+.settings-modal {
+  max-width: 520px;
+}
+
+.settings-close-button {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+}
+
+.settings-section {
+  margin: 18px 0;
+}
+
+.settings-section h4 {
+  margin: 0 0 10px;
+}
+
+.view-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.view-mode-option {
+  width: 100%;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+
+  padding: 14px;
+
+  border: 1px solid #3f3f46;
+  border-radius: 16px;
+
+  background: #09090b;
+  color: #f4f4f5;
+
+  text-align: left;
+}
+
+.view-mode-option.selected {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.view-mode-marker {
+  flex-shrink: 0;
+  color: #60a5fa;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.view-mode-description {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.view-mode-description strong {
+  font-size: 15px;
+}
+
+.view-mode-description small {
+  color: #a1a1aa;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.settings-current-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin: 16px 0;
+  padding: 12px 14px;
+
+  border: 1px solid #27272a;
+  border-radius: 14px;
+
+  background: #09090b;
+}
+
+.settings-current-mode span {
+  color: #a1a1aa;
+  font-size: 13px;
+}
+
+.settings-current-mode strong {
+  color: #60a5fa;
+}
+
+.dos-nav-label {
+  display: none;
+}
+
+/* ==================================================
+   DOS SOFT VIEW
+   Retro-Aufbau mit weicherer Typografie,
+   dezenten Lavendel-Akzenten und vollständiger
+   Funktionalität für Formulare und Graphen.
+   ================================================== */
+
+:root[data-view-mode="dos"] {
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+
+  color: #e9e7ef;
+  background: #151419;
+}
+
+:root[data-view-mode="dos"] body {
+  margin: 0;
+
+  background: #151419;
+  color: #e9e7ef;
+
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+}
+
+/* ==================================================
+   APP UND HEADER
+   ================================================== */
+
+:root[data-view-mode="dos"] .app {
+  max-width: 900px;
+
+  padding: 12px;
+  padding-bottom: 78px;
+}
+
+:root[data-view-mode="dos"] .main {
+  margin-top: 10px;
+}
+
+:root[data-view-mode="dos"] .header {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 14px;
+
+  border: 1px solid #5b5864;
+  border-radius: 6px;
+
+  background: #1d1c22;
+
+  box-shadow: none;
+}
+
+:root[data-view-mode="dos"] .header::before {
+  content: "C:\\VERTICAL_PROGRESS>";
+
+  position: absolute;
+  top: -8px;
+  left: 12px;
+
+  padding: 0 6px;
+
+  background: #151419;
+  color: #9f9aa9;
+
+  font-size: 10px;
+  line-height: 1;
+}
+
+:root[data-view-mode="dos"] .logo {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #81768f;
+  border-radius: 5px;
+
+  background: #29262f;
+  color: #d9c7ee;
+}
+
+:root[data-view-mode="dos"] .header-title-block {
+  min-width: 0;
+  flex: 1;
+}
+
+:root[data-view-mode="dos"] .header h1 {
+  margin: 0;
+
+  color: #f4edf9;
+
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0.3px;
+
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"] .header p {
+  margin: 4px 0 0;
+
+  color: #aaa4b3;
+
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+
+  font-size: 11px;
+}
+
+:root[data-view-mode="dos"]
+  .header-settings-button {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 1px solid #81768f;
+  border-radius: 5px;
+
+  background: #29262f;
+  color: #d9c7ee;
+}
+
+:root[data-view-mode="dos"]
+  .header-settings-button:hover {
+  border-color: #d9c7ee;
+  background: #d9c7ee;
+  color: #1a181e;
+}
+
+/* ==================================================
+   HAUPTSEITEN UND CONTAINER
+   ================================================== */
+
+:root[data-view-mode="dos"] .card {
+  padding: 14px;
+
+  border: 1px solid #55515d;
+  border-radius: 6px;
+
+  background: #1d1c22;
+
+  box-shadow: none;
+}
+
+:root[data-view-mode="dos"] .card h2 {
+  margin: 0 0 7px;
+
+  color: #f4edf9;
+
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"] .card h2::before {
+  content: "> ";
+  color: #c4b5d5;
+}
+
+:root[data-view-mode="dos"] .card h3,
+:root[data-view-mode="dos"] .card h4 {
+  color: #eee8f3;
+
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+
+  font-weight: 600;
+}
+
+:root[data-view-mode="dos"] .card p {
+  color: #aaa5b0;
+}
+
+:root[data-view-mode="dos"] .page-header {
+  padding-bottom: 11px;
+
+  border-bottom: 1px solid #48434f;
+}
+
+:root[data-view-mode="dos"] .sub-card {
+  margin-top: 12px;
+  padding: 12px;
+
+  border: 1px solid #4c4853;
+  border-radius: 5px;
+
+  background: #17161b;
+}
+
+:root[data-view-mode="dos"] .sub-card.inner {
+  background: #1d1c22;
+}
+
+:root[data-view-mode="dos"] .sub-card h3 {
+  margin: 0 0 10px;
+  padding-bottom: 7px;
+
+  border-bottom: 1px dashed #504b58;
+
+  color: #eee8f3;
+
+  font-size: 14px;
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"]
+  .sub-card h3::before {
+  content: "[ ";
+  color: #bca9d0;
+}
+
+:root[data-view-mode="dos"]
+  .sub-card h3::after {
+  content: " ]";
+  color: #bca9d0;
+}
+
+:root[data-view-mode="dos"] .hint {
+  color: #99939f;
+  font-size: 12px;
+}
+
+/* ==================================================
+   LISTEN UND EINTRÄGE
+   ================================================== */
+
+:root[data-view-mode="dos"] .list {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+:root[data-view-mode="dos"] .list-item {
+  padding: 11px;
+
+  border: 1px solid #48444e;
+  border-radius: 5px;
+
+  background: #17161b;
+}
+
+:root[data-view-mode="dos"] .list-item:hover {
+  border-color: #756c80;
+  background: #1c1a20;
+}
+
+:root[data-view-mode="dos"] .list-item h3 {
+  margin: 0 0 6px;
+
+  color: #eee8f3;
+
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+
+  font-size: 14px;
+  font-weight: 600;
+}
+
+:root[data-view-mode="dos"] .list-item p {
+  color: #aaa5b0;
+}
+
+:root[data-view-mode="dos"] .details {
+  margin-top: 9px;
+  padding-top: 9px;
+
+  border-top: 1px dashed #403c46;
+}
+
+:root[data-view-mode="dos"]
+  .session-exercise-summary {
+  padding: 8px;
+
+  border: 1px solid #423e49;
+  border-radius: 4px;
+
+  background: #1e1c23;
+}
+
+:root[data-view-mode="dos"]
+  .session-exercise-line {
+  padding: 7px 8px;
+
+  border: 0;
+  border-radius: 3px;
+
+  background: #121116;
+  color: #ddd8e2;
+}
+
+:root[data-view-mode="dos"]
+  .entry-exercise {
+  border-color: #46414d;
+  border-radius: 4px;
+
+  background: #1d1b21;
+}
+
+/* ==================================================
+   EINGABEN UND BUTTONS
+   ================================================== */
+
+:root[data-view-mode="dos"] input,
+:root[data-view-mode="dos"] select,
+:root[data-view-mode="dos"] textarea,
+:root[data-view-mode="dos"] button {
+  border: 1px solid #57515f;
+  border-radius: 4px;
+
+  background: #141318;
+  color: #e2dde7;
+
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+
+  font-size: 13px;
+}
+
+:root[data-view-mode="dos"] input::placeholder,
+:root[data-view-mode="dos"] textarea::placeholder {
+  color: #77717e;
+}
+
+:root[data-view-mode="dos"] input:focus,
+:root[data-view-mode="dos"] select:focus,
+:root[data-view-mode="dos"] textarea:focus {
+  outline: 1px solid #c7b6d9;
+  border-color: #c7b6d9;
+}
+
+:root[data-view-mode="dos"] button {
+  background: #28252d;
+  color: #e8e1ed;
+
+  font-weight: 650;
+}
+
+:root[data-view-mode="dos"] button:hover {
+  border-color: #d3c3e3;
+  background: #d3c3e3;
+  color: #1a181e;
+}
+
+:root[data-view-mode="dos"] button:disabled {
+  opacity: 0.35;
+}
+
+:root[data-view-mode="dos"]
+  .primary-action-button {
+  border-color: #b9a6cb;
+
+  background: #c7b6d9;
+  color: #1a181e;
+}
+
+:root[data-view-mode="dos"]
+  .primary-action-button::before {
+  content: "[ ";
+}
+
+:root[data-view-mode="dos"]
+  .primary-action-button::after {
+  content: " ]";
+}
+
+:root[data-view-mode="dos"]
+  .primary-action-button:hover {
+  border-color: #eadff3;
+
+  background: #eadff3;
+  color: #151419;
+}
+
+:root[data-view-mode="dos"]
+  .secondary-button {
+  background: #1d1b21;
+  color: #cbc4d1;
+}
+
+:root[data-view-mode="dos"]
+  .danger-button,
+:root[data-view-mode="dos"]
+  .danger-menu-button {
+  border-color: #a66373;
+
+  background: #2c1b20;
+  color: #eda6b5;
+}
+
+:root[data-view-mode="dos"]
+  .field-label {
+  color: #aaa4b1;
+
+  font-size: 12px;
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"]
+  .field-label::before {
+  content: "> ";
+  color: #b9a6cb;
+}
+
+:root[data-view-mode="dos"]
+  .input-with-unit {
+  border: 1px solid #504a57;
+  border-radius: 4px;
+
+  background: #141318;
+}
+
+:root[data-view-mode="dos"]
+  .input-with-unit input {
+  color: #e2dde7;
+}
+
+:root[data-view-mode="dos"]
+  .input-with-unit span {
+  color: #928c98;
+}
+
+/* ==================================================
+   MENÜS UND MODALE
+   ================================================== */
+
+:root[data-view-mode="dos"] .modal-overlay {
+  background: rgba(11, 10, 13, 0.88);
+
+  backdrop-filter: blur(2px);
+}
+
+:root[data-view-mode="dos"] .modal-card {
+  border: 1px solid #81768f;
+  border-radius: 6px;
+
+  background: #1d1c22;
+  color: #e3dde8;
+
+  box-shadow:
+    7px 7px 0 #0c0b0e;
+}
+
+:root[data-view-mode="dos"] .modal-header {
+  padding-bottom: 10px;
+
+  border-bottom: 1px dashed #504a57;
+}
+
+:root[data-view-mode="dos"]
+  .modal-header h3 {
+  color: #f1eaf5;
+
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"]
+  .modal-header p {
+  color: #a5a0aa;
+}
+
+:root[data-view-mode="dos"]
+  .settings-close-button {
+  border-radius: 4px;
+}
+
+:root[data-view-mode="dos"]
+  .plan-options-menu {
+  padding: 4px;
+
+  border: 1px solid #81768f;
+  border-radius: 5px;
+
+  background: #1d1c22;
+
+  box-shadow:
+    5px 5px 0 #0c0b0e;
+}
+
+:root[data-view-mode="dos"]
+  .menu-button {
+  border-radius: 3px;
+
+  background: #1d1c22;
+  color: #d8d1de;
+}
+
+:root[data-view-mode="dos"]
+  .menu-button:hover {
+  background: #d3c3e3;
+  color: #1a181e;
+}
+
+/* ==================================================
+   EINSTELLUNGEN
+   ================================================== */
+
+:root[data-view-mode="dos"]
+  .settings-section h4 {
+  color: #e7dfec;
+
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"]
+  .view-mode-option {
+  border-radius: 5px;
+
+  background: #17161b;
+  color: #ded8e3;
+}
+
+:root[data-view-mode="dos"]
+  .view-mode-option.selected {
+  border-color: #c7b6d9;
+
+  background: #292530;
+}
+
+:root[data-view-mode="dos"]
+  .view-mode-marker {
+  color: #d4c1e5;
+}
+
+:root[data-view-mode="dos"]
+  .view-mode-description small {
+  color: #a39da9;
+}
+
+:root[data-view-mode="dos"]
+  .settings-current-mode {
+  border-color: #56515e;
+  border-radius: 5px;
+
+  background: #151419;
+}
+
+:root[data-view-mode="dos"]
+  .settings-current-mode span {
+  color: #a29ca8;
+}
+
+:root[data-view-mode="dos"]
+  .settings-current-mode strong {
+  color: #ddccec;
+}
+
+/* ==================================================
+   TABS
+   ================================================== */
+
+:root[data-view-mode="dos"]
+  .stats-tab-bar,
+:root[data-view-mode="dos"]
+  .boulder-statistics-tab-bar {
+  gap: 3px;
+  padding: 3px;
+
+  border: 1px solid #504a57;
+  border-radius: 5px;
+
+  background: #141318;
+}
+
+:root[data-view-mode="dos"]
+  .stats-tab-bar button,
+:root[data-view-mode="dos"]
+  .boulder-statistics-tab-bar button {
+  min-height: 36px;
+
+  border: 1px solid transparent;
+  border-radius: 3px;
+
+  background: #1d1b21;
+  color: #aaa4b1;
+
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"]
+  .stats-tab-bar button.active-tab,
+:root[data-view-mode="dos"]
+  .boulder-statistics-tab-bar
+  button.active-tab {
+  border-color: #c7b6d9;
+
+  background: #c7b6d9;
+  color: #1a181e;
+}
+
+/* ==================================================
+   STATISTIKWERTE
+   ================================================== */
+
+:root[data-view-mode="dos"] .stats-grid {
+  gap: 7px;
+}
+
+:root[data-view-mode="dos"] .stat-box {
+  padding: 10px;
+
+  border: 1px solid #48434f;
+  border-radius: 4px;
+
+  background: #141318;
+}
+
+:root[data-view-mode="dos"]
+  .stat-box span {
+  margin-bottom: 5px;
+
+  color: #9e98a5;
+
+  font-size: 12px;
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"]
+  .stat-box strong {
+  color: #eee7f2;
+  font-size: 20px;
+}
+
+:root[data-view-mode="dos"] .stats-row {
+  padding: 8px;
+
+  border: 1px solid #45404b;
+  border-radius: 4px;
+
+  background: #141318;
+}
+
+:root[data-view-mode="dos"]
+  .stats-row span:first-child {
+  color: #e5dee9;
+}
+
+:root[data-view-mode="dos"]
+  .stats-row span:not(:first-child) {
+  color: #aaa4b0;
+}
+
+:root[data-view-mode="dos"]
+  .grade-filter-button {
+  min-width: 44px;
+  padding: 7px 9px;
+
+  border-radius: 4px;
+}
+
+:root[data-view-mode="dos"]
+  .grade-filter-button.active {
+  border-color: #c7b6d9;
+
+  background: #c7b6d9;
+  color: #1a181e;
+}
+
+/* ==================================================
+   TABELLEN
+   ================================================== */
+
+:root[data-view-mode="dos"]
+  .boulder-table {
+  border: 1px solid #55505c;
+  border-radius: 4px;
+}
+
+:root[data-view-mode="dos"]
+  .boulder-table-header span {
+  background: #29262f;
+  color: #eee7f2;
+}
+
+:root[data-view-mode="dos"]
+  .boulder-table-header span,
+:root[data-view-mode="dos"]
+  .boulder-table-row span {
+  border-color: #45404b;
+}
+
+:root[data-view-mode="dos"]
+  .boulder-table-row span:first-child {
+  background: #1d1b21;
+  color: #e5dee9;
+}
+
+:root[data-view-mode="dos"]
+  .boulder-table-row
+  span:not(:first-child) {
+  background: #141318;
+  color: #b8b1bd;
+}
+
+/* ==================================================
+   GRAPHEN
+   ================================================== */
+
+:root[data-view-mode="dos"]
+  .simple-chart,
+:root[data-view-mode="dos"]
+  .line-chart-box {
+  padding: 10px;
+
+  border: 1px solid #504a57;
+  border-radius: 4px;
+
+  background: #141318;
+}
+
+:root[data-view-mode="dos"]
+  .simple-chart-label {
+  color: #ded7e3;
+}
+
+:root[data-view-mode="dos"]
+  .simple-chart-value {
+  color: #aaa4b0;
+}
+
+:root[data-view-mode="dos"]
+  .simple-bar-track {
+  height: 10px;
+
+  border: 1px solid #403b46;
+  border-radius: 2px;
+
+  background: #25222a;
+}
+
+:root[data-view-mode="dos"]
+  .simple-bar-fill {
+  border-radius: 1px;
+
+  background: #c7b6d9;
+}
+
+:root[data-view-mode="dos"]
+  .line-chart-summary span {
+  border: 1px solid #423e49;
+  border-radius: 3px;
+
+  background: #1d1b21;
+  color: #aaa4b0;
+}
+
+:root[data-view-mode="dos"]
+  .svg-axis-text {
+  fill: #aaa4b0;
+}
+
+:root[data-view-mode="dos"]
+  .svg-axis-label {
+  fill: #ddd5e2;
+}
+
+:root[data-view-mode="dos"]
+  .chart-legend span {
+  color: #b0aab6;
+}
+
+/*
+ * Die ursprünglichen Farben der einzelnen
+ * Linien bleiben bestehen, damit Grade und
+ * Datenserien unterscheidbar bleiben.
+ */
+
+/* ==================================================
+   TRENDS
+   ================================================== */
+
+:root[data-view-mode="dos"]
+  .trend-period-info > div,
+:root[data-view-mode="dos"]
+  .trend-card {
+  border-radius: 4px;
+
+  background: #141318;
+}
+
+:root[data-view-mode="dos"]
+  .trend-period-info > div {
+  border-color: #48434f;
+}
+
+:root[data-view-mode="dos"]
+  .trend-card {
+  border-color: #504a57;
+}
+
+:root[data-view-mode="dos"]
+  .trend-card-label {
+  color: #9e98a5;
+
+  text-transform: none;
+}
+
+:root[data-view-mode="dos"]
+  .trend-card-value {
+  color: #e8e1ed;
+}
+
+:root[data-view-mode="dos"]
+  .trend-card-comparison {
+  color: #b2acb8;
+}
+
+:root[data-view-mode="dos"]
+  .trend-card-sample {
+  color: #8e8894;
+}
+
+/* Positive Trends */
+
+:root[data-view-mode="dos"]
+  .trend-card.positive {
+  border-color: #65836b;
+
+  background: #151b16;
+}
+
+:root[data-view-mode="dos"]
+  .trend-card.positive
+  .trend-card-value {
+  color: #a8d1ae;
+}
+
+/* Negative Trends */
+
+:root[data-view-mode="dos"]
+  .trend-card.negative {
+  border-color: #8e626e;
+
+  background: #1e1518;
+}
+
+:root[data-view-mode="dos"]
+  .trend-card.negative
+  .trend-card-value {
+  color: #daa6b2;
+}
+
+/* Neue Werte */
+
+:root[data-view-mode="dos"]
+  .trend-card.new {
+  border-color: #7b6c8a;
+
+  background: #1c1821;
+}
+
+:root[data-view-mode="dos"]
+  .trend-card.new
+  .trend-card-value {
+  color: #d4c1e5;
+}
+
+/* ==================================================
+   STATUS, TIMER UND HINWEISE
+   ================================================== */
+
+:root[data-view-mode="dos"]
+  .last-stats-box,
+:root[data-view-mode="dos"]
+  .timer-box,
+:root[data-view-mode="dos"]
+  .backup-banner,
+:root[data-view-mode="dos"]
+  .backup-reminder-box {
+  border-radius: 4px;
+
+  background: #17161b;
+}
+
+:root[data-view-mode="dos"]
+  .backup-banner {
+  border-color: #756b4e;
+
+  background: #201d14;
+}
+
+:root[data-view-mode="dos"]
+  .backup-banner h3 {
+  color: #d6c68d;
+}
+
+:root[data-view-mode="dos"]
+  .backup-banner p {
+  color: #b9ad82;
+}
+
+:root[data-view-mode="dos"] .status {
+  border-radius: 3px;
+}
+
+:root[data-view-mode="dos"]
+  .status.active {
+  border: 1px solid #66846c;
+
+  background: #141a15;
+  color: #a2cba8;
+}
+
+:root[data-view-mode="dos"]
+  .status.inactive {
+  border: 1px solid #63606a;
+
+  background: #18171b;
+  color: #9c97a1;
+}
+
+/* ==================================================
+   BOTTOM NAVIGATION
+   ================================================== */
+
+:root[data-view-mode="dos"]
+  .bottom-nav {
+  gap: 0;
+  padding: 0;
+
+  border-top: 1px solid #726a7b;
+
+  background: #1a181e;
+}
+
+:root[data-view-mode="dos"]
+  .nav-item {
+  min-height: 58px;
+
+  border-right: 1px solid #403b46;
+
+  background: #1a181e;
+  color: #9d97a4;
+
+  font-family:
+    "Cascadia Mono",
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "Consolas",
+    monospace;
+
+  font-size: 11px;
+}
+
+:root[data-view-mode="dos"]
+  .nav-item:last-child {
+  border-right: 0;
+}
+
+:root[data-view-mode="dos"]
+  .nav-item.active {
+  background: #c7b6d9;
+  color: #1a181e;
+}
+
+:root[data-view-mode="dos"]
+  .standard-nav-label {
+  display: none;
+}
+
+:root[data-view-mode="dos"]
+  .dos-nav-label {
+  display: inline;
+}
+
+/* ==================================================
+   MOBILE
+   ================================================== */
+
+@media (max-width: 520px) {
+  :root[data-view-mode="dos"] .app {
+    padding: 8px;
+    padding-bottom: 72px;
+  }
+
+  :root[data-view-mode="dos"] .header {
+    padding: 11px;
+  }
+
+  :root[data-view-mode="dos"] .header p {
+    display: none;
+  }
+
+  :root[data-view-mode="dos"] .card {
+    padding: 10px;
+  }
+
+  :root[data-view-mode="dos"]
+    .stat-box strong {
+    font-size: 18px;
+  }
+}
